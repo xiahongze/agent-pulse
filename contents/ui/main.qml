@@ -8,6 +8,8 @@ PlasmoidItem {
     id: root
     implicitWidth: 410
     implicitHeight: 650
+    Layout.minimumWidth: 360
+    Layout.minimumHeight: 600
     property var snapshot: ({providers: [], history: [], generated_at: ""})
     property bool busy: false
     property string errorText: ""
@@ -29,6 +31,7 @@ PlasmoidItem {
     }
     fullRepresentation: Rectangle {
         implicitWidth: 410; implicitHeight: 650; color: root.surface; radius: 14
+        Layout.minimumWidth: 360; Layout.minimumHeight: 600
         ColumnLayout {
             anchors.fill: parent; anchors.margins: Math.max(12, Math.min(20, parent.width * 0.05)); spacing: 14
             RowLayout {
