@@ -24,6 +24,7 @@ PlasmoidItem {
     compactRepresentation: Controls.Button {
         implicitWidth: 38; implicitHeight: 38; onClicked: root.expanded = !root.expanded
         Accessible.name: i18n("Open Agent Pulse")
+        background: Item {}
         contentItem: Controls.Label { text: "</>"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; color: root.accent; font.family: "monospace"; font.bold: true }
     }
     fullRepresentation: Rectangle {
