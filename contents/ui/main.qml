@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls as Controls
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
 
 PlasmoidItem {
@@ -22,7 +23,10 @@ PlasmoidItem {
     property color ink: forcedDark ? "#e8eef7" : forcedLight ? "#152033" : Kirigami.Theme.textColor
     property color muted: forcedDark ? "#8290a4" : forcedLight ? "#64748b" : Kirigami.Theme.disabledTextColor
 
-    preferredRepresentation: fullRepresentation
+    switchWidth: Plasmoid.formFactor === PlasmaCore.Types.Planar ? -1 : 360
+    switchHeight: Plasmoid.formFactor === PlasmaCore.Types.Planar ? -1 : 600
+    preferredRepresentation: Plasmoid.formFactor === PlasmaCore.Types.Planar ? fullRepresentation : null
+    Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
     compactRepresentation: Controls.Button {
         implicitWidth: 38; implicitHeight: 38; onClicked: root.expanded = !root.expanded
         Accessible.name: i18n("Open Agent Pulse")
@@ -30,8 +34,10 @@ PlasmoidItem {
         contentItem: Controls.Label { text: "</>"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; color: root.accent; font.family: "monospace"; font.bold: true }
     }
     fullRepresentation: Rectangle {
+        width: Math.max(410, root.width); height: Math.max(650, root.height)
         implicitWidth: 410; implicitHeight: 650; color: root.surface; radius: 14
         Layout.minimumWidth: 360; Layout.minimumHeight: 600
+        Layout.preferredWidth: 410; Layout.preferredHeight: 650
         ColumnLayout {
             anchors.fill: parent; anchors.margins: Math.max(12, Math.min(20, parent.width * 0.05)); spacing: 14
             RowLayout {
