@@ -3,6 +3,7 @@ set -euo pipefail
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 install -Dm755 "$repo_dir/src/agent_pulse.py" "$HOME/.local/share/agent-pulse/agent_pulse.py"
 install -Dm644 "$repo_dir/systemd/agent-pulse.service" "$HOME/.config/systemd/user/agent-pulse.service"
+install -Dm644 "$repo_dir/contents/icons/agent-pulse.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/agent-pulse.svg"
 mkdir -p "$HOME/.config/agent-pulse"
 if [[ ! -f "$HOME/.config/agent-pulse/config.json" ]]; then
   codex_path="$(command -v codex || true)"
@@ -17,5 +18,8 @@ if kpackagetool6 --type Plasma/Applet --show io.github.xiahongze.agentpulse >/de
   kpackagetool6 --type Plasma/Applet --upgrade "$repo_dir"
 else
   kpackagetool6 --type Plasma/Applet --install "$repo_dir"
+fi
+if command -v kbuildsycoca6 >/dev/null 2>&1; then
+  kbuildsycoca6 --noincremental >/dev/null
 fi
 echo "Installed Agent Pulse. Add it from Plasma's widget picker."

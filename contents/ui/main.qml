@@ -24,7 +24,8 @@ PlasmoidItem {
 
     Plasmoid.icon: root.agentIcon
     Plasmoid.title: i18n("Agent Pulse")
-    Plasmoid.backgroundHints: PlasmaCore.Types.DefaultBackground
+    // The desktop supplies its own translucent surface below; panel popups keep native Plasma chrome.
+    Plasmoid.backgroundHints: root.isDesktop ? PlasmaCore.Types.NoBackground : PlasmaCore.Types.DefaultBackground
     switchWidth: Plasmoid.formFactor === PlasmaCore.Types.Planar ? -1 : 360
     switchHeight: Plasmoid.formFactor === PlasmaCore.Types.Planar ? -1 : 500
     preferredRepresentation: Plasmoid.formFactor === PlasmaCore.Types.Planar ? fullRepresentation : null

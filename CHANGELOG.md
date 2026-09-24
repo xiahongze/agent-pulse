@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1 — 2026-09-24
+
+- Fixed desktop transparency by disabling Plasma's opaque chrome only in planar mode
+- Installed the custom icon into the user icon theme for the widget explorer
+
 ## 0.3.0 — 2026-09-24
 
 - Added desktop-only transparency and functional light/dark themes
