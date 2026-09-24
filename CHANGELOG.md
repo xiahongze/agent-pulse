@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2 — 2026-09-24
+
+- Restored the refresh action before the rightmost icon-only pin
+
 ## 0.4.1 — 2026-09-24
 
 - Replaced the popup refresh action with an icon-only pin at the far right

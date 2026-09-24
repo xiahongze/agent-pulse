@@ -58,6 +58,12 @@ PlasmoidItem {
                 ColumnLayout { spacing: 1; Controls.Label { text: i18n("AGENT PULSE"); color: root.ink; font.pixelSize: 18; font.bold: true; font.letterSpacing: 2 } Controls.Label { text: root.errorText || (root.busy ? i18n("SYNCING LOCAL TELEMETRY") : i18n("LOCAL TELEMETRY • PRIVATE")); color: root.errorText ? "#fb7185" : root.accent; font.pixelSize: 10; font.family: "monospace" } }
                 Item { Layout.fillWidth: true }
                 PlasmaComponents.ToolButton {
+                    icon.name: "view-refresh"
+                    enabled: !root.busy
+                    onClicked: root.refresh()
+                    PlasmaComponents.ToolTip { text: i18n("Refresh Now") }
+                }
+                PlasmaComponents.ToolButton {
                     visible: !root.isDesktop
                     checkable: true
                     checked: Plasmoid.configuration.pin
