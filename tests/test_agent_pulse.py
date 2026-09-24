@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
-from src.agent_pulse import collect, load_config
+from src.agent_pulse import collect, latest_codex_limits, load_config
 
 class CollectorTests(unittest.TestCase):
     def test_collects_both_local_formats_without_content(self):
@@ -31,5 +31,13 @@ class CollectorTests(unittest.TestCase):
             result = collect({"codex_home":str(codex),"claude_home":str(claude)}, datetime(2026,9,24,12))
             self.assertFalse(result["providers"][0]["available"])
             self.assertTrue(result["providers"][1]["available"])
+
+    def test_reads_latest_codex_rate_windows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp); day = home / "sessions/2026/09/24"; day.mkdir(parents=True)
+            payload = {"timestamp":"2026-09-24T01:30:00Z","payload":{"rate_limits":{"plan_type":"plus","primary":{"used_percent":12,"window_minutes":300,"resets_at":1790230000},"secondary":{"used_percent":34,"window_minutes":10080,"resets_at":1790816800}}}}
+            (day / "rollout-test.jsonl").write_text(json.dumps(payload) + "\n")
+            windows = latest_codex_limits(home)
+            self.assertEqual([(w["label"], w["used_percent"]) for w in windows], [("5 HOUR", 12.0), ("WEEKLY", 34.0)])
 
 if __name__ == "__main__": unittest.main()

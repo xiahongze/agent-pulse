@@ -37,13 +37,13 @@ PlasmoidItem {
                 model: root.snapshot.providers || []
                 delegate: Rectangle {
                     required property var modelData
-                    Layout.fillWidth: true; Layout.preferredHeight: 150; radius: 10
+                    Layout.fillWidth: true; Layout.preferredHeight: modelData.rate_windows.length ? 190 : 150; radius: 10
                     color: Qt.alpha(root.ink, 0.055); border.color: Qt.alpha(root.accent, 0.28)
                     ColumnLayout { anchors.fill: parent; anchors.margins: 14; spacing: 7
                         RowLayout { Layout.fillWidth: true; Rectangle { width: 8; height: 8; radius: 4; color: modelData.available ? root.accent : root.muted } Controls.Label { text: modelData.name.toUpperCase(); color: root.ink; font.bold: true; font.letterSpacing: 1 } Item { Layout.fillWidth: true } Controls.Label { text: modelData.available ? "ONLINE" : "NO DATA"; color: modelData.available ? root.accent : root.muted; font.pixelSize: 10; font.family: "monospace" } }
+                        Repeater { model: modelData.rate_windows; delegate: RateWindow { required property var modelData; label: modelData.label; percentage: modelData.used_percent; resetAt: modelData.reset_at; accent: root.accent; ink: root.ink; muted: root.muted } }
                         RowLayout { Layout.fillWidth: true; spacing: 12; Metric { label: "TOKENS • 7D"; value: modelData.available ? root.compact(modelData.tokens_7d) : "—"; ink: root.ink; muted: root.muted } Metric { label: "SESSIONS • 7D"; value: modelData.available ? modelData.sessions_7d : "—"; ink: root.ink; muted: root.muted } Metric { label: "TOKENS • TODAY"; value: modelData.available ? root.compact(modelData.tokens_today) : "—"; ink: root.ink; muted: root.muted } }
-                        Rectangle { Layout.fillWidth: true; height: 1; color: Qt.alpha(root.ink, .1) }
-                        RowLayout { Layout.fillWidth: true; Controls.Label { text: modelData.available ? "SOURCE  " + (modelData.source_updated || "CURRENT") : (modelData.status_detail || "NO LOCAL DATA"); color: root.muted; font.pixelSize: 10; font.family: "monospace" } Item { Layout.fillWidth: true } Controls.Label { text: modelData.reset_label || "NOT EXPOSED BY CLI"; color: root.muted; font.pixelSize: 10; font.family: "monospace" } }
+                        Controls.Label { text: modelData.available ? "SOURCE  " + (modelData.source_updated || "CURRENT") : (modelData.status_detail || "NO LOCAL DATA"); color: root.muted; font.pixelSize: 9; font.family: "monospace" }
                     }
                 }
             }

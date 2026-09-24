@@ -53,7 +53,51 @@ def codex_metrics(home: Path, today: datetime) -> tuple[dict[str, Any], dict[str
         sessions[key] += 1
     result = summarize("Codex", daily, sessions, today)
     result["source_updated"] = datetime.fromtimestamp(db.stat().st_mtime).astimezone().strftime("%d %b %H:%M")
+    result["rate_windows"] = latest_codex_limits(home)
+    if result["rate_windows"]:
+        result["plan"] = result["rate_windows"][0].get("plan", "")
+        for window in result["rate_windows"]:
+            window.pop("plan", None)
     return result, daily
+
+
+def latest_codex_limits(home: Path) -> list[dict[str, Any]]:
+    """Read only the tail of recent rollouts; token_count events carry server-reported limits."""
+    try:
+        files = sorted((home / "sessions").glob("*/*/*/rollout-*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)[:20]
+    except OSError:
+        return []
+    newest: tuple[str, dict[str, Any]] | None = None
+    for path in files:
+        try:
+            with path.open("rb") as stream:
+                stream.seek(max(0, path.stat().st_size - 512_000))
+                for raw in stream:
+                    try:
+                        event = json.loads(raw)
+                        limits = event.get("payload", {}).get("rate_limits")
+                        stamp = event.get("timestamp", "")
+                        if limits and (newest is None or stamp > newest[0]):
+                            newest = (stamp, limits)
+                    except (ValueError, UnicodeDecodeError):
+                        continue
+        except OSError:
+            continue
+    if not newest:
+        return []
+    limits = newest[1]
+    result = []
+    for key in ("primary", "secondary", "individual_limit"):
+        window = limits.get(key)
+        if not isinstance(window, dict) or window.get("used_percent") is None:
+            continue
+        minutes = int(window.get("window_minutes") or 0)
+        label = "5 HOUR" if minutes == 300 else "WEEKLY" if minutes == 10080 else f"{minutes // 60} HOUR"
+        reset = datetime.fromtimestamp(int(window["resets_at"])).astimezone() if window.get("resets_at") else None
+        result.append({"label": label, "used_percent": float(window["used_percent"]),
+                       "reset_at": reset.strftime("%a %H:%M") if reset else "",
+                       "plan": str(limits.get("plan_type") or "").upper()})
+    return result
 
 
 def claude_metrics(home: Path, today: datetime) -> tuple[dict[str, Any], dict[str, int]]:
@@ -77,7 +121,7 @@ def claude_metrics(home: Path, today: datetime) -> tuple[dict[str, Any], dict[st
 
 def provider(name: str, available: bool, reason: str = "") -> dict[str, Any]:
     return {"name": name, "available": available, "tokens_today": 0, "tokens_7d": 0,
-            "sessions_7d": 0, "reset_label": "Not exposed by CLI", "status_detail": reason}
+            "sessions_7d": 0, "rate_windows": [], "status_detail": reason}
 
 
 def summarize(name: str, daily: dict[str, int], sessions: dict[str, int], today: datetime) -> dict[str, Any]:
@@ -100,7 +144,7 @@ def collect(config: dict[str, Any], now: datetime | None = None) -> dict[str, An
     peak = max((v for _, v in totals), default=0) or 1
     return {"schema": 1, "generated_at": now.strftime("%H:%M:%S"), "providers": [codex, claude],
             "history": [{"label": label, "tokens": value, "ratio": value / peak} for label, value in totals],
-            "privacy": "local-only", "quota_note": "Plan quota/reset is not exposed by either CLI."}
+            "privacy": "local-only", "quota_note": "Rate windows are included only when reported by local agent events."}
 
 
 class Handler(BaseHTTPRequestHandler):

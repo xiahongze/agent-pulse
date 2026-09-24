@@ -9,7 +9,7 @@ A native Plasma 6 widget for private, at-a-glance Codex and Claude Code activity
 - Codex and Claude tokens today and over the last seven days
 - Seven-day session counts and a combined activity chart
 - Collector health, source freshness, last refresh, and auto-refresh cadence
-- Honest quota/reset status: **Not exposed by CLI** when there is no supported source
+- Server-reported Codex 5-hour and weekly usage percentages with reset times
 - System, light, and dark appearances with Cyan, Violet, Amber, Nord, and Solarized accents
 
 ## Install on Plasma 6
@@ -26,12 +26,12 @@ Configuration lives at `~/.config/agent-pulse/config.json`. The UI interval, the
 
 ## Data accuracy and privacy
 
-The assumption that both CLIs expose all usage data needs one correction: their current non-interactive command interfaces do **not** provide plan quota or reset timestamps. Agent Pulse reads supported local history instead:
+The top-level non-interactive commands do not directly print quota, but Codex records server-reported rate-limit snapshots in its local session events. Agent Pulse shows those 5-hour/weekly percentages and reset times, plus local history:
 
-- Codex: aggregate thread timestamps and token totals from `~/.codex/state_5.sqlite`
+- Codex: rate windows from recent `token_count` events and aggregate history from `~/.codex/state_5.sqlite`
 - Claude: aggregate daily model-token and activity values from `~/.claude/stats-cache.json`
 
-These are historical usage totals, not billing or subscription quota. The service does not read `auth.json`, `.credentials.json`, prompts, responses, tool calls, or source content. It binds only to loopback and makes no network requests. Upstream file schemas are not public contracts, so unavailable or changed data is reported explicitly rather than guessed.
+Claude currently records history but not a reliable current utilization percentage, so Agent Pulse does not invent one or show a meaningless reset row. The service does not read `auth.json`, `.credentials.json`, prompt/response fields, tool calls, or source content. It binds only to loopback and makes no network requests. Upstream file schemas are not public contracts, so unavailable or changed data is omitted rather than guessed.
 
 ## Develop and package
 
@@ -50,4 +50,3 @@ kpackagetool6 --type Plasma/Applet --remove io.github.xiahongze.agentpulse
 systemctl --user disable --now agent-pulse.service
 rm ~/.config/systemd/user/agent-pulse.service ~/.local/share/agent-pulse/agent_pulse.py
 ```
-
