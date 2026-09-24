@@ -8,6 +8,7 @@ import os
 import shutil
 import sqlite3
 from collections import defaultdict
+from contextlib import closing
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -42,7 +43,7 @@ def codex_metrics(home: Path, today: datetime) -> tuple[dict[str, Any], dict[str
     if not db.exists():
         return provider("Codex", False), daily
     try:
-        with sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2) as con:
+        with closing(sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)) as con:
             rows = con.execute("SELECT created_at, tokens_used FROM threads").fetchall()
     except sqlite3.Error as exc:
         return provider("Codex", False, f"History unavailable: {type(exc).__name__}"), daily
@@ -104,19 +105,66 @@ def claude_metrics(home: Path, today: datetime) -> tuple[dict[str, Any], dict[st
     path = home / "stats-cache.json"
     daily: dict[str, int] = defaultdict(int)
     sessions: dict[str, int] = defaultdict(int)
-    if not path.exists():
-        return provider("Claude", False, "History file not found"), daily
+    cache_date = None
     try:
         data = json.loads(path.read_text())
+        cache_date = data.get("lastComputedDate")
         for item in data.get("dailyModelTokens", []):
             daily[item["date"]] += sum(int(v or 0) for v in item.get("tokensByModel", {}).values())
         for item in data.get("dailyActivity", []):
             sessions[item["date"]] += int(item.get("sessionCount", 0))
     except (OSError, ValueError, TypeError, KeyError):
-        return provider("Claude", False, "History file unreadable"), daily
+        data = {}
+    raw_daily, raw_sessions = recent_claude_sessions(home, today)
+    for day, tokens in raw_daily.items():
+        if cache_date is None or day > cache_date:
+            daily[day] = tokens
+            sessions[day] = raw_sessions.get(day, 0)
+    if not data and not raw_daily:
+        return provider("Claude", False, "History files unavailable"), daily
     result = summarize("Claude", daily, sessions, today)
-    result["source_updated"] = data.get("lastComputedDate") or datetime.fromtimestamp(path.stat().st_mtime).astimezone().strftime("%d %b %H:%M")
+    result["source_updated"] = max(raw_daily, default=cache_date or "")
     return result, daily
+
+
+def recent_claude_sessions(home: Path, today: datetime) -> tuple[dict[str, int], dict[str, int]]:
+    """Aggregate recent assistant usage, deduplicating streamed records by message id."""
+    cutoff = today.date() - timedelta(days=6)
+    daily: dict[str, int] = defaultdict(int)
+    session_days: dict[str, set[str]] = defaultdict(set)
+    try:
+        files = [p for p in (home / "projects").glob("*/*.jsonl")
+                 if datetime.fromtimestamp(p.stat().st_mtime).date() >= cutoff]
+    except OSError:
+        return daily, {}
+    for path in files:
+        messages: dict[tuple[str, str], int] = {}
+        try:
+            with path.open(errors="ignore") as stream:
+                for line in stream:
+                    try:
+                        event = json.loads(line)
+                        if event.get("type") != "assistant":
+                            continue
+                        message = event.get("message") or {}
+                        usage = message.get("usage") or {}
+                        stamp = str(event.get("timestamp") or "")
+                        day = datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone().date()
+                        if day < cutoff:
+                            continue
+                        message_id = str(message.get("id") or event.get("uuid") or "")
+                        tokens = sum(int(usage.get(key, 0) or 0) for key in
+                                     ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
+                        key = (day.isoformat(), message_id)
+                        messages[key] = max(messages.get(key, 0), tokens)
+                    except (ValueError, TypeError, AttributeError):
+                        continue
+        except OSError:
+            continue
+        for (day, _), tokens in messages.items():
+            daily[day] += tokens
+            session_days[day].add(path.name)
+    return daily, {day: len(names) for day, names in session_days.items()}
 
 
 def provider(name: str, available: bool, reason: str = "") -> dict[str, Any]:

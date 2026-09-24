@@ -6,6 +6,8 @@ import org.kde.plasma.plasmoid
 
 PlasmoidItem {
     id: root
+    implicitWidth: 410
+    implicitHeight: 650
     property var snapshot: ({providers: [], history: [], generated_at: ""})
     property bool busy: false
     property string errorText: ""
@@ -13,7 +15,8 @@ PlasmoidItem {
     property color accent: accents[Plasmoid.configuration.palette] || accents.cyan
     property bool forcedDark: Plasmoid.configuration.themeMode === "dark"
     property bool forcedLight: Plasmoid.configuration.themeMode === "light"
-    property color surface: forcedDark ? "#10151d" : forcedLight ? "#f7f9fc" : Kirigami.Theme.backgroundColor
+    property color themeSurface: forcedDark ? "#10151d" : forcedLight ? "#f7f9fc" : Kirigami.Theme.backgroundColor
+    property color surface: Qt.rgba(themeSurface.r, themeSurface.g, themeSurface.b, 0.97)
     property color ink: forcedDark ? "#e8eef7" : forcedLight ? "#152033" : Kirigami.Theme.textColor
     property color muted: forcedDark ? "#8290a4" : forcedLight ? "#64748b" : Kirigami.Theme.disabledTextColor
 
@@ -24,9 +27,9 @@ PlasmoidItem {
         contentItem: Controls.Label { text: "</>"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; color: root.accent; font.family: "monospace"; font.bold: true }
     }
     fullRepresentation: Rectangle {
-        implicitWidth: 390; implicitHeight: 560; color: root.surface; radius: 14
+        implicitWidth: 410; implicitHeight: 650; color: root.surface; radius: 14
         ColumnLayout {
-            anchors.fill: parent; anchors.margins: 20; spacing: 14
+            anchors.fill: parent; anchors.margins: Math.max(12, Math.min(20, parent.width * 0.05)); spacing: 14
             RowLayout {
                 Layout.fillWidth: true
                 ColumnLayout { spacing: 1; Controls.Label { text: "AGENT PULSE"; color: root.ink; font.pixelSize: 18; font.bold: true; font.letterSpacing: 2 } Controls.Label { text: root.errorText || (root.busy ? "SYNCING LOCAL TELEMETRY" : "LOCAL TELEMETRY • PRIVATE"); color: root.errorText ? "#fb7185" : root.accent; font.pixelSize: 10; font.family: "monospace" } }
@@ -42,7 +45,7 @@ PlasmoidItem {
                     ColumnLayout { anchors.fill: parent; anchors.margins: 14; spacing: 7
                         RowLayout { Layout.fillWidth: true; Rectangle { width: 8; height: 8; radius: 4; color: modelData.available ? root.accent : root.muted } Controls.Label { text: modelData.name.toUpperCase(); color: root.ink; font.bold: true; font.letterSpacing: 1 } Item { Layout.fillWidth: true } Controls.Label { text: modelData.available ? "ONLINE" : "NO DATA"; color: modelData.available ? root.accent : root.muted; font.pixelSize: 10; font.family: "monospace" } }
                         Repeater { model: modelData.rate_windows; delegate: RateWindow { required property var modelData; label: modelData.label; percentage: modelData.used_percent; resetAt: modelData.reset_at; accent: root.accent; ink: root.ink; muted: root.muted } }
-                        RowLayout { Layout.fillWidth: true; spacing: 12; Metric { label: "TOKENS • 7D"; value: modelData.available ? root.compact(modelData.tokens_7d) : "—"; ink: root.ink; muted: root.muted } Metric { label: "SESSIONS • 7D"; value: modelData.available ? modelData.sessions_7d : "—"; ink: root.ink; muted: root.muted } Metric { label: "TOKENS • TODAY"; value: modelData.available ? root.compact(modelData.tokens_today) : "—"; ink: root.ink; muted: root.muted } }
+                        RowLayout { Layout.fillWidth: true; spacing: 6; Metric { label: "TOKENS • 7D"; value: modelData.available ? root.compact(modelData.tokens_7d) : "—"; ink: root.ink; muted: root.muted } Metric { label: "SESSIONS • 7D"; value: modelData.available ? modelData.sessions_7d : "—"; ink: root.ink; muted: root.muted } Metric { label: "TOKENS • TODAY"; value: modelData.available ? root.compact(modelData.tokens_today) : "—"; ink: root.ink; muted: root.muted } }
                         Controls.Label { text: modelData.available ? "SOURCE  " + (modelData.source_updated || "CURRENT") : (modelData.status_detail || "NO LOCAL DATA"); color: root.muted; font.pixelSize: 9; font.family: "monospace" }
                     }
                 }

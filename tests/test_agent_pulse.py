@@ -40,4 +40,18 @@ class CollectorTests(unittest.TestCase):
             windows = latest_codex_limits(home)
             self.assertEqual([(w["label"], w["used_percent"]) for w in windows], [("5 HOUR", 12.0), ("WEEKLY", 34.0)])
 
+    def test_claude_sessions_fill_stale_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); codex = root / "codex"; claude = root / "claude"; codex.mkdir(); claude.mkdir()
+            con = sqlite3.connect(codex / "state_5.sqlite")
+            con.execute("CREATE TABLE threads(created_at INTEGER, tokens_used INTEGER, archived INTEGER)"); con.close()
+            (claude / "stats-cache.json").write_text('{"lastComputedDate":"2026-09-17","dailyModelTokens":[],"dailyActivity":[]}')
+            project = claude / "projects/demo"; project.mkdir(parents=True)
+            event = {"type":"assistant","timestamp":"2026-09-24T01:00:00Z","message":{"id":"msg-1","usage":{"input_tokens":100,"output_tokens":20,"cache_read_input_tokens":300}}}
+            (project / "session.jsonl").write_text(json.dumps(event) + "\n" + json.dumps(event) + "\n")
+            result = collect({"codex_home":str(codex),"claude_home":str(claude)}, datetime(2026,9,24,12))
+            claude_result = result["providers"][1]
+            self.assertEqual(claude_result["tokens_today"], 420)
+            self.assertEqual(claude_result["sessions_7d"], 1)
+
 if __name__ == "__main__": unittest.main()
