@@ -11,6 +11,7 @@ A native Plasma 6 widget for private, at-a-glance Codex and Claude Code activity
 - Collector health, source freshness, last refresh, and auto-refresh cadence
 - Server-reported Codex 5-hour and weekly usage percentages with reset times
 - System, light, and dark appearances with Cyan, Violet, Amber, Nord, and Solarized accents
+- Adjustable background opacity, defaulting to 50%
 
 ## Install on Plasma 6
 
@@ -31,7 +32,9 @@ The top-level non-interactive commands do not directly print quota, but Codex re
 - Codex: rate windows from recent `token_count` events and aggregate history from `~/.codex/state_5.sqlite`
 - Claude: aggregate daily model-token and activity values from `~/.claude/stats-cache.json`
 
-Claude currently records history but not a reliable current utilization percentage, so Agent Pulse does not invent one or show a meaningless reset row. The service does not read `auth.json`, `.credentials.json`, prompt/response fields, tool calls, or source content. It binds only to loopback and makes no network requests. Upstream file schemas are not public contracts, so unavailable or changed data is omitted rather than guessed.
+For OAuth-based Claude accounts, Agent Pulse reads only the access token from `.credentials.json` and sends it to Anthropic's official HTTPS `/api/oauth/usage` endpoint—the same source as Claude Code's `/usage` screen. This supplies the 5-hour, weekly, and any model-scoped windows. The token is never returned by the local service, logged, or stored elsewhere. Set `claude_online_usage` to `false` to keep collection fully offline; history continues to work.
+
+The collector never reads prompt/response fields, tool calls, or source content. Its local endpoint binds only to loopback. Upstream file schemas are not public contracts, so unavailable or changed data is omitted rather than guessed.
 
 ## Develop and package
 

@@ -16,7 +16,7 @@ PlasmoidItem {
     property bool forcedDark: Plasmoid.configuration.themeMode === "dark"
     property bool forcedLight: Plasmoid.configuration.themeMode === "light"
     property color themeSurface: forcedDark ? "#10151d" : forcedLight ? "#f7f9fc" : Kirigami.Theme.backgroundColor
-    property color surface: Qt.rgba(themeSurface.r, themeSurface.g, themeSurface.b, 0.97)
+    property color surface: Qt.rgba(themeSurface.r, themeSurface.g, themeSurface.b, Math.max(10, Plasmoid.configuration.backgroundOpacity) / 100)
     property color ink: forcedDark ? "#e8eef7" : forcedLight ? "#152033" : Kirigami.Theme.textColor
     property color muted: forcedDark ? "#8290a4" : forcedLight ? "#64748b" : Kirigami.Theme.disabledTextColor
 
@@ -40,7 +40,7 @@ PlasmoidItem {
                 model: root.snapshot.providers || []
                 delegate: Rectangle {
                     required property var modelData
-                    Layout.fillWidth: true; Layout.preferredHeight: modelData.rate_windows.length ? 190 : 150; radius: 10
+                    Layout.fillWidth: true; Layout.preferredHeight: 150 + Math.max(0, modelData.rate_windows.length - 1) * 32; radius: 10
                     color: Qt.alpha(root.ink, 0.055); border.color: Qt.alpha(root.accent, 0.28)
                     ColumnLayout { anchors.fill: parent; anchors.margins: 14; spacing: 7
                         RowLayout { Layout.fillWidth: true; Rectangle { width: 8; height: 8; radius: 4; color: modelData.available ? root.accent : root.muted } Controls.Label { text: modelData.name.toUpperCase(); color: root.ink; font.bold: true; font.letterSpacing: 1 } Item { Layout.fillWidth: true } Controls.Label { text: modelData.available ? "ONLINE" : "NO DATA"; color: modelData.available ? root.accent : root.muted; font.pixelSize: 10; font.family: "monospace" } }

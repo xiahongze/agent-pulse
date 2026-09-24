@@ -7,6 +7,8 @@ import json
 import os
 import shutil
 import sqlite3
+import urllib.error
+import urllib.request
 from collections import defaultdict
 from contextlib import closing
 from datetime import datetime, timedelta
@@ -20,7 +22,10 @@ DEFAULT_CONFIG = {
     "claude_binary": shutil.which("claude") or str(Path.home() / ".local/bin/claude"),
     "codex_home": str(Path.home() / ".codex"),
     "claude_home": str(Path.home() / ".claude"),
+    "claude_online_usage": True,
 }
+
+_CLAUDE_USAGE_CACHE: tuple[float, list[dict[str, Any]]] = (0.0, [])
 
 
 def load_config(path: Path | None = None) -> dict[str, Any]:
@@ -101,7 +106,7 @@ def latest_codex_limits(home: Path) -> list[dict[str, Any]]:
     return result
 
 
-def claude_metrics(home: Path, today: datetime) -> tuple[dict[str, Any], dict[str, int]]:
+def claude_metrics(home: Path, today: datetime, online_usage: bool = True) -> tuple[dict[str, Any], dict[str, int]]:
     path = home / "stats-cache.json"
     daily: dict[str, int] = defaultdict(int)
     sessions: dict[str, int] = defaultdict(int)
@@ -124,7 +129,44 @@ def claude_metrics(home: Path, today: datetime) -> tuple[dict[str, Any], dict[st
         return provider("Claude", False, "History files unavailable"), daily
     result = summarize("Claude", daily, sessions, today)
     result["source_updated"] = max(raw_daily, default=cache_date or "")
+    if online_usage:
+        result["rate_windows"] = claude_rate_windows(home)
     return result, daily
+
+
+def claude_rate_windows(home: Path) -> list[dict[str, Any]]:
+    """Fetch the same read-only subscription windows used by Claude Code's /usage UI."""
+    global _CLAUDE_USAGE_CACHE
+    now = datetime.now().timestamp()
+    if now - _CLAUDE_USAGE_CACHE[0] < 60:
+        return _CLAUDE_USAGE_CACHE[1]
+    try:
+        credentials = json.loads((home / ".credentials.json").read_text())
+        token = credentials["claudeAiOauth"]["accessToken"]
+        request = urllib.request.Request(
+            "https://api.anthropic.com/api/oauth/usage",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json",
+                     "User-Agent": "agent-pulse/0.1"},
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            payload = json.load(response)
+    except (OSError, KeyError, ValueError, TypeError, urllib.error.URLError):
+        return _CLAUDE_USAGE_CACHE[1]
+    windows = []
+    for limit in payload.get("limits", []):
+        if limit.get("percent") is None:
+            continue
+        kind = str(limit.get("kind") or "")
+        scope = limit.get("scope") or {}
+        model = (scope.get("model") or {}).get("display_name")
+        label = "5 HOUR" if kind == "session" else "WEEKLY" if kind == "weekly_all" else f"{model.upper()} WEEKLY" if model else kind.replace("_", " ").upper()
+        reset_at = ""
+        if limit.get("resets_at"):
+            reset_at = datetime.fromisoformat(str(limit["resets_at"]).replace("Z", "+00:00")).astimezone().strftime("%a %H:%M")
+        windows.append({"label": label, "used_percent": float(limit["percent"]),
+                        "reset_at": reset_at, "severity": limit.get("severity", "normal")})
+    _CLAUDE_USAGE_CACHE = (now, windows)
+    return windows
 
 
 def recent_claude_sessions(home: Path, today: datetime) -> tuple[dict[str, int], dict[str, int]]:
@@ -183,7 +225,7 @@ def summarize(name: str, daily: dict[str, int], sessions: dict[str, int], today:
 def collect(config: dict[str, Any], now: datetime | None = None) -> dict[str, Any]:
     now = now or datetime.now().astimezone()
     codex, cdaily = codex_metrics(Path(config["codex_home"]), now)
-    claude, adaily = claude_metrics(Path(config["claude_home"]), now)
+    claude, adaily = claude_metrics(Path(config["claude_home"]), now, bool(config.get("claude_online_usage", True)))
     totals = []
     for offset in range(6, -1, -1):
         day = now.date() - timedelta(days=offset)
@@ -192,7 +234,8 @@ def collect(config: dict[str, Any], now: datetime | None = None) -> dict[str, An
     peak = max((v for _, v in totals), default=0) or 1
     return {"schema": 1, "generated_at": now.strftime("%H:%M:%S"), "providers": [codex, claude],
             "history": [{"label": label, "tokens": value, "ratio": value / peak} for label, value in totals],
-            "privacy": "local-only", "quota_note": "Rate windows are included only when reported by local agent events."}
+            "privacy": "local-history; provider usage lookup enabled" if config.get("claude_online_usage", True) else "local-only",
+            "quota_note": "Rate windows are included only when reported by the providers."}
 
 
 class Handler(BaseHTTPRequestHandler):

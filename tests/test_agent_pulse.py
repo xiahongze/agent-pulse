@@ -2,9 +2,11 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import datetime
 from pathlib import Path
-from src.agent_pulse import collect, latest_codex_limits, load_config
+import src.agent_pulse as agent_pulse
+from src.agent_pulse import claude_rate_windows, collect, latest_codex_limits, load_config
 
 class CollectorTests(unittest.TestCase):
     def test_collects_both_local_formats_without_content(self):
@@ -18,7 +20,7 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(result["providers"][0]["tokens_today"], 1200)
             self.assertEqual(result["providers"][1]["tokens_today"], 800)
             self.assertEqual(result["history"][-1]["tokens"], 2000)
-            self.assertEqual(result["privacy"], "local-only")
+            self.assertEqual(result["privacy"], "local-history; provider usage lookup enabled")
 
     def test_defaults_bind_loopback(self):
         self.assertEqual(load_config(Path("/does/not/exist"))["host"], "127.0.0.1")
@@ -53,5 +55,18 @@ class CollectorTests(unittest.TestCase):
             claude_result = result["providers"][1]
             self.assertEqual(claude_result["tokens_today"], 420)
             self.assertEqual(claude_result["sessions_7d"], 1)
+
+    def test_claude_online_rate_windows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            (home / ".credentials.json").write_text('{"claudeAiOauth":{"accessToken":"secret"}}')
+            response = unittest.mock.MagicMock()
+            response.__enter__.return_value = response
+            response.__exit__.return_value = False
+            payload = {"limits":[{"kind":"session","percent":42,"resets_at":"2026-09-24T02:30:00Z"},{"kind":"weekly_all","percent":17,"resets_at":"2026-09-25T08:00:00Z"}]}
+            agent_pulse._CLAUDE_USAGE_CACHE = (0.0, [])
+            with patch("src.agent_pulse.urllib.request.urlopen", return_value=response), patch("src.agent_pulse.json.load", return_value=payload):
+                windows = claude_rate_windows(home)
+            self.assertEqual([(w["label"], w["used_percent"]) for w in windows], [("5 HOUR", 42.0), ("WEEKLY", 17.0)])
 
 if __name__ == "__main__": unittest.main()
