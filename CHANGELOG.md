@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0 — 2026-09-24
+
+- Added a persistent pin control that keeps the taskbar popup open
+- Fixed Codex windows disappearing when a newer unrelated limit event had no windows
+
 ## 0.3.1 — 2026-09-24
 
 - Fixed desktop transparency by disabling Plasma's opaque chrome only in planar mode

@@ -14,6 +14,7 @@ A native Plasma 6 widget for private, at-a-glance Codex and Claude Code activity
 - Server-reported Codex 5-hour and weekly usage percentages with reset times
 - System, light, and dark appearances with Cyan, Violet, Amber, Nord, and Solarized accents
 - Full desktop dashboard plus a compact taskbar icon with a click-open popup
+- Pin control to keep the taskbar popup open while working elsewhere
 
 ## Install on Plasma 6
 

@@ -83,7 +83,11 @@ def latest_codex_limits(home: Path) -> list[dict[str, Any]]:
                         event = json.loads(raw)
                         limits = event.get("payload", {}).get("rate_limits")
                         stamp = event.get("timestamp", "")
-                        if limits and (newest is None or stamp > newest[0]):
+                        has_window = isinstance(limits, dict) and any(
+                            isinstance(limits.get(key), dict) and limits[key].get("used_percent") is not None
+                            for key in ("primary", "secondary", "individual_limit")
+                        )
+                        if has_window and (newest is None or stamp > newest[0]):
                             newest = (stamp, limits)
                     except (ValueError, UnicodeDecodeError):
                         continue

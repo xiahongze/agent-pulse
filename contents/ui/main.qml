@@ -29,6 +29,7 @@ PlasmoidItem {
     switchWidth: Plasmoid.formFactor === PlasmaCore.Types.Planar ? -1 : 360
     switchHeight: Plasmoid.formFactor === PlasmaCore.Types.Planar ? -1 : 500
     preferredRepresentation: Plasmoid.formFactor === PlasmaCore.Types.Planar ? fullRepresentation : null
+    hideOnWindowDeactivate: !Plasmoid.configuration.pin
 
     compactRepresentation: Item {
         implicitWidth: Kirigami.Units.gridUnit * 2
@@ -56,6 +57,15 @@ PlasmoidItem {
                 Kirigami.Icon { source: root.agentIcon; Layout.preferredWidth: 34; Layout.preferredHeight: 34 }
                 ColumnLayout { spacing: 1; Controls.Label { text: i18n("AGENT PULSE"); color: root.ink; font.pixelSize: 18; font.bold: true; font.letterSpacing: 2 } Controls.Label { text: root.errorText || (root.busy ? i18n("SYNCING LOCAL TELEMETRY") : i18n("LOCAL TELEMETRY • PRIVATE")); color: root.errorText ? "#fb7185" : root.accent; font.pixelSize: 10; font.family: "monospace" } }
                 Item { Layout.fillWidth: true }
+                PlasmaComponents.ToolButton {
+                    visible: !root.isDesktop
+                    checkable: true
+                    checked: Plasmoid.configuration.pin
+                    icon.name: "window-pin"
+                    text: i18n("Keep Open")
+                    onToggled: Plasmoid.configuration.pin = checked
+                    PlasmaComponents.ToolTip { text: parent.text }
+                }
                 PlasmaComponents.ToolButton { icon.name: "view-refresh"; enabled: !root.busy; Accessible.name: i18n("Refresh now"); onClicked: root.refresh() }
             }
             Repeater {
