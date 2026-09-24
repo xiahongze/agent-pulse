@@ -11,7 +11,7 @@ A native Plasma 6 widget for private, at-a-glance Codex and Claude Code activity
 - Collector health, source freshness, last refresh, and auto-refresh cadence
 - Server-reported Codex 5-hour and weekly usage percentages with reset times
 - System, light, and dark appearances with Cyan, Violet, Amber, Nord, and Solarized accents
-- Adjustable background opacity, defaulting to 50%
+- Full desktop dashboard plus a compact taskbar icon with a click-open popup
 
 ## Install on Plasma 6
 
