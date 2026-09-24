@@ -4,6 +4,8 @@ A native Plasma 6 widget for private, at-a-glance Codex and Claude Code activity
 
 ![Plasma 6](https://img.shields.io/badge/Plasma-6-1d99f3) ![Python 3](https://img.shields.io/badge/Python-3.11%2B-3776ab) ![License](https://img.shields.io/badge/license-MIT-22c55e)
 
+![Agent Pulse taskbar popup with synthetic usage data](docs/screenshots/agent-pulse-popup.png)
+
 ## What it shows
 
 - Codex and Claude tokens today and over the last seven days
@@ -16,8 +18,8 @@ A native Plasma 6 widget for private, at-a-glance Codex and Claude Code activity
 ## Install on Plasma 6
 
 ```bash
-git clone https://github.com/xiahongze/agent-usage-dashboard.git
-cd agent-usage-dashboard
+git clone https://github.com/xiahongze/agent-pulse.git
+cd agent-pulse
 ./scripts/install.sh
 ```
 

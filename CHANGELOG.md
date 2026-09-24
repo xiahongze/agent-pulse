@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 — 2026-09-24
+
+- Added desktop-only transparency and functional light/dark themes
+- Added a custom Agent Pulse pulse-wave icon
+- Added public, privacy-safe widget screenshots
+- Renamed the project repository to Agent Pulse
+
 ## 0.2.0 — 2026-09-24
 
 - Added dual desktop-dashboard and taskbar-popup representations
