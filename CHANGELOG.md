@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1 — 2026-09-24
+
+- Replaced the popup refresh action with an icon-only pin at the far right
+
 ## 0.4.0 — 2026-09-24
 
 - Added a persistent pin control that keeps the taskbar popup open

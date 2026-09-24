@@ -62,11 +62,9 @@ PlasmoidItem {
                     checkable: true
                     checked: Plasmoid.configuration.pin
                     icon.name: "window-pin"
-                    text: i18n("Keep Open")
                     onToggled: Plasmoid.configuration.pin = checked
-                    PlasmaComponents.ToolTip { text: parent.text }
+                    PlasmaComponents.ToolTip { text: i18n("Keep Open") }
                 }
-                PlasmaComponents.ToolButton { icon.name: "view-refresh"; enabled: !root.busy; Accessible.name: i18n("Refresh now"); onClicked: root.refresh() }
             }
             Repeater {
                 model: root.snapshot.providers || []
