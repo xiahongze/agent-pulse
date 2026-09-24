@@ -41,14 +41,19 @@ def codex_metrics(home: Path, today: datetime) -> tuple[dict[str, Any], dict[str
     db = home / "state_5.sqlite"
     if not db.exists():
         return provider("Codex", False), daily
-    with sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2) as con:
-        rows = con.execute("SELECT created_at, tokens_used FROM threads WHERE archived = 0 OR archived = 1").fetchall()
+    try:
+        with sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2) as con:
+            rows = con.execute("SELECT created_at, tokens_used FROM threads").fetchall()
+    except sqlite3.Error as exc:
+        return provider("Codex", False, f"History unavailable: {type(exc).__name__}"), daily
     for stamp, tokens in rows:
         dt = datetime.fromtimestamp(stamp)
         key = dt.date().isoformat()
         daily[key] += int(tokens or 0)
         sessions[key] += 1
-    return summarize("Codex", daily, sessions, today), daily
+    result = summarize("Codex", daily, sessions, today)
+    result["source_updated"] = datetime.fromtimestamp(db.stat().st_mtime).astimezone().strftime("%d %b %H:%M")
+    return result, daily
 
 
 def claude_metrics(home: Path, today: datetime) -> tuple[dict[str, Any], dict[str, int]]:
@@ -56,7 +61,7 @@ def claude_metrics(home: Path, today: datetime) -> tuple[dict[str, Any], dict[st
     daily: dict[str, int] = defaultdict(int)
     sessions: dict[str, int] = defaultdict(int)
     if not path.exists():
-        return provider("Claude", False), daily
+        return provider("Claude", False, "History file not found"), daily
     try:
         data = json.loads(path.read_text())
         for item in data.get("dailyModelTokens", []):
@@ -64,15 +69,15 @@ def claude_metrics(home: Path, today: datetime) -> tuple[dict[str, Any], dict[st
         for item in data.get("dailyActivity", []):
             sessions[item["date"]] += int(item.get("sessionCount", 0))
     except (OSError, ValueError, TypeError, KeyError):
-        return provider("Claude", False), daily
+        return provider("Claude", False, "History file unreadable"), daily
     result = summarize("Claude", daily, sessions, today)
-    result["source_updated"] = data.get("lastComputedDate")
+    result["source_updated"] = data.get("lastComputedDate") or datetime.fromtimestamp(path.stat().st_mtime).astimezone().strftime("%d %b %H:%M")
     return result, daily
 
 
-def provider(name: str, available: bool) -> dict[str, Any]:
+def provider(name: str, available: bool, reason: str = "") -> dict[str, Any]:
     return {"name": name, "available": available, "tokens_today": 0, "tokens_7d": 0,
-            "sessions_7d": 0, "reset_label": "Not exposed by CLI"}
+            "sessions_7d": 0, "reset_label": "Not exposed by CLI", "status_detail": reason}
 
 
 def summarize(name: str, daily: dict[str, int], sessions: dict[str, int], today: datetime) -> dict[str, Any]:
@@ -91,7 +96,7 @@ def collect(config: dict[str, Any], now: datetime | None = None) -> dict[str, An
     for offset in range(6, -1, -1):
         day = now.date() - timedelta(days=offset)
         key = day.isoformat()
-        totals.append((day.strftime("%a")[:1], cdaily.get(key, 0) + adaily.get(key, 0)))
+        totals.append((day.strftime("%d"), cdaily.get(key, 0) + adaily.get(key, 0)))
     peak = max((v for _, v in totals), default=0) or 1
     return {"schema": 1, "generated_at": now.strftime("%H:%M:%S"), "providers": [codex, claude],
             "history": [{"label": label, "tokens": value, "ratio": value / peak} for label, value in totals],
@@ -124,4 +129,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

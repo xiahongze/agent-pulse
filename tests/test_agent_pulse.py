@@ -23,5 +23,13 @@ class CollectorTests(unittest.TestCase):
     def test_defaults_bind_loopback(self):
         self.assertEqual(load_config(Path("/does/not/exist"))["host"], "127.0.0.1")
 
-if __name__ == "__main__": unittest.main()
+    def test_bad_codex_schema_isolated_from_claude(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); codex = root / "codex"; claude = root / "claude"; codex.mkdir(); claude.mkdir()
+            sqlite3.connect(codex / "state_5.sqlite").close()
+            (claude / "stats-cache.json").write_text('{"dailyModelTokens":[],"dailyActivity":[]}')
+            result = collect({"codex_home":str(codex),"claude_home":str(claude)}, datetime(2026,9,24,12))
+            self.assertFalse(result["providers"][0]["available"])
+            self.assertTrue(result["providers"][1]["available"])
 
+if __name__ == "__main__": unittest.main()

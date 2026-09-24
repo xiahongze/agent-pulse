@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y zip && ./scripts/package.sh
+      - run: ./scripts/package.sh
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/agent-pulse.plasmoid

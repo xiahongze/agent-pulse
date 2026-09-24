@@ -18,9 +18,10 @@ PlasmoidItem {
     property color muted: forcedDark ? "#8290a4" : forcedLight ? "#64748b" : Kirigami.Theme.disabledTextColor
 
     preferredRepresentation: fullRepresentation
-    compactRepresentation: MouseArea {
+    compactRepresentation: Controls.Button {
         implicitWidth: 38; implicitHeight: 38; onClicked: root.expanded = !root.expanded
-        Controls.Label { anchors.centerIn: parent; text: "</>"; color: root.accent; font.family: "monospace"; font.bold: true }
+        Accessible.name: i18n("Open Agent Pulse")
+        contentItem: Controls.Label { text: "</>"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; color: root.accent; font.family: "monospace"; font.bold: true }
     }
     fullRepresentation: Rectangle {
         implicitWidth: 390; implicitHeight: 560; color: root.surface; radius: 14
@@ -40,15 +41,15 @@ PlasmoidItem {
                     color: Qt.alpha(root.ink, 0.055); border.color: Qt.alpha(root.accent, 0.28)
                     ColumnLayout { anchors.fill: parent; anchors.margins: 14; spacing: 7
                         RowLayout { Layout.fillWidth: true; Rectangle { width: 8; height: 8; radius: 4; color: modelData.available ? root.accent : root.muted } Controls.Label { text: modelData.name.toUpperCase(); color: root.ink; font.bold: true; font.letterSpacing: 1 } Item { Layout.fillWidth: true } Controls.Label { text: modelData.available ? "ONLINE" : "NO DATA"; color: modelData.available ? root.accent : root.muted; font.pixelSize: 10; font.family: "monospace" } }
-                        RowLayout { Layout.fillWidth: true; Metric { label: "TOKENS • 7D"; value: root.compact(modelData.tokens_7d); ink: root.ink; muted: root.muted } Metric { label: "SESSIONS • 7D"; value: modelData.sessions_7d; ink: root.ink; muted: root.muted } Metric { label: "TODAY"; value: root.compact(modelData.tokens_today); ink: root.ink; muted: root.muted } }
+                        RowLayout { Layout.fillWidth: true; spacing: 12; Metric { label: "TOKENS • 7D"; value: modelData.available ? root.compact(modelData.tokens_7d) : "—"; ink: root.ink; muted: root.muted } Metric { label: "SESSIONS • 7D"; value: modelData.available ? modelData.sessions_7d : "—"; ink: root.ink; muted: root.muted } Metric { label: "TOKENS • TODAY"; value: modelData.available ? root.compact(modelData.tokens_today) : "—"; ink: root.ink; muted: root.muted } }
                         Rectangle { Layout.fillWidth: true; height: 1; color: Qt.alpha(root.ink, .1) }
-                        RowLayout { Layout.fillWidth: true; Controls.Label { text: "QUOTA RESET"; color: root.muted; font.pixelSize: 10; font.family: "monospace" } Item { Layout.fillWidth: true } Controls.Label { text: modelData.reset_label || "NOT EXPOSED BY CLI"; color: root.muted; font.pixelSize: 10; font.family: "monospace" } }
+                        RowLayout { Layout.fillWidth: true; Controls.Label { text: modelData.available ? "SOURCE  " + (modelData.source_updated || "CURRENT") : (modelData.status_detail || "NO LOCAL DATA"); color: root.muted; font.pixelSize: 10; font.family: "monospace" } Item { Layout.fillWidth: true } Controls.Label { text: modelData.reset_label || "NOT EXPOSED BY CLI"; color: root.muted; font.pixelSize: 10; font.family: "monospace" } }
                     }
                 }
             }
             Controls.Label { Layout.fillWidth: true; text: "7 DAY ACTIVITY"; color: root.muted; font.pixelSize: 10; font.family: "monospace"; font.letterSpacing: 1 }
             RowLayout { Layout.fillWidth: true; Layout.preferredHeight: 54; spacing: 5
-                Repeater { model: root.snapshot.history || []; delegate: ColumnLayout { required property var modelData; Layout.fillWidth: true; Layout.fillHeight: true; spacing: 3; Item { Layout.fillHeight: true; Layout.fillWidth: true; Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Math.max(3,parent.height * modelData.ratio); radius: 2; color: root.accent } } Controls.Label { Layout.alignment: Qt.AlignHCenter; text: modelData.label; color: root.muted; font.pixelSize: 8 } } }
+                Repeater { model: root.snapshot.history || []; delegate: ColumnLayout { required property var modelData; Layout.fillWidth: true; spacing: 3; Item { Layout.preferredHeight: 36; Layout.fillWidth: true; Accessible.name: modelData.label + ": " + root.compact(modelData.tokens) + " tokens"; Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Math.max(3, 36 * modelData.ratio); radius: 2; color: root.accent } } Controls.Label { Layout.alignment: Qt.AlignHCenter; text: modelData.label; color: root.muted; font.pixelSize: 8 } } }
             }
             Item { Layout.fillHeight: true }
             RowLayout { Layout.fillWidth: true; Controls.Label { text: root.snapshot.generated_at ? "UPDATED " + root.snapshot.generated_at : "WAITING FOR SERVICE"; color: root.muted; font.pixelSize: 9; font.family: "monospace" } Item { Layout.fillWidth: true } Controls.Label { text: Plasmoid.configuration.refreshSeconds + "s AUTO"; color: root.muted; font.pixelSize: 9; font.family: "monospace" } }
@@ -58,4 +59,3 @@ PlasmoidItem {
     function compact(n) { n=Number(n||0); return n>=1000000?(n/1000000).toFixed(1)+"M":n>=1000?(n/1000).toFixed(1)+"K":String(n) }
     function refresh() { busy=true; errorText=""; let x=new XMLHttpRequest(); x.open("GET",Plasmoid.configuration.endpoint); x.onreadystatechange=function(){ if(x.readyState===XMLHttpRequest.DONE){busy=false;if(x.status===200){try{snapshot=JSON.parse(x.responseText)}catch(e){errorText="INVALID SERVICE RESPONSE"}}else errorText="SERVICE OFFLINE"}}; x.send() }
 }
-

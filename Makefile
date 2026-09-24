@@ -3,7 +3,7 @@ test:
 	python3 -m unittest discover -s tests -v
 lint:
 	python3 -m compileall -q src tests
-	qmllint contents/ui/*.qml
+	@if command -v qmllint >/dev/null; then qmllint contents/ui/*.qml; else echo "qmllint unavailable; skipped"; fi
 package:
 	./scripts/package.sh
 install:

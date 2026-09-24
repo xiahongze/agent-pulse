@@ -16,9 +16,8 @@ jobs:
       - name: Validate metadata
         run: python -c 'import json; json.load(open("metadata.json"))'
       - name: Build plasmoid
-        run: sudo apt-get update && sudo apt-get install -y zip && ./scripts/package.sh
+        run: ./scripts/package.sh
       - uses: actions/upload-artifact@v4
         with:
           name: agent-pulse-plasmoid
           path: dist/agent-pulse.plasmoid
-
