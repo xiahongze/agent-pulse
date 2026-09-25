@@ -3,7 +3,7 @@
   <kcfgfile name=""/>
   <group name="General">
     <entry name="refreshSeconds" type="Int"><default>60</default></entry>
-    <entry name="endpoint" type="String"><default>http://127.0.0.1:42427/v1/stats</default></entry>
+    <entry name="claudeOnlineUsage" type="Bool"><default>true</default></entry>
     <entry name="themeMode" type="String"><default>system</default></entry>
     <entry name="palette" type="String"><default>cyan</default></entry>
     <entry name="desktopOpacity" type="Int"><default>50</default></entry>

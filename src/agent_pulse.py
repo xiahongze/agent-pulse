@@ -1,32 +1,28 @@
 #!/usr/bin/env python3
-"""Local-only metrics service for Agent Pulse. Uses Python's standard library."""
+"""One-shot local metrics collector for Agent Pulse. Uses Python's standard library."""
 from __future__ import annotations
 
 import argparse
+import fcntl
+import hashlib
 import json
 import os
-import shutil
 import sqlite3
+import tempfile
+import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
 from contextlib import closing
 from datetime import datetime, timedelta
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
 DEFAULT_CONFIG = {
-    "host": "127.0.0.1", "port": 42427,
-    "codex_binary": shutil.which("codex") or str(Path.home() / ".bun/bin/codex"),
-    "claude_binary": shutil.which("claude") or str(Path.home() / ".local/bin/claude"),
     "codex_home": str(Path.home() / ".codex"),
     "claude_home": str(Path.home() / ".claude"),
     "claude_online_usage": True,
 }
-
-_CLAUDE_USAGE_CACHE: tuple[float, list[dict[str, Any]]] = (0.0, [])
-
 
 def load_config(path: Path | None = None) -> dict[str, Any]:
     config = dict(DEFAULT_CONFIG)
@@ -134,28 +130,90 @@ def claude_metrics(home: Path, today: datetime, online_usage: bool = True) -> tu
     result = summarize("Claude", daily, sessions, today)
     result["source_updated"] = max(raw_daily, default=cache_date or "")
     if online_usage:
-        result["rate_windows"] = claude_rate_windows(home)
+        result["rate_windows"], result["usage_status"], fetched_at = claude_usage(home)
+        if fetched_at is not None:
+            try:
+                result["usage_updated"] = datetime.fromtimestamp(fetched_at).astimezone().strftime("%d %b %H:%M")
+            except (OverflowError, OSError, ValueError):
+                pass
+    else:
+        result["usage_status"] = "disabled"
     return result, daily
 
 
 def claude_rate_windows(home: Path) -> list[dict[str, Any]]:
-    """Fetch the same read-only subscription windows used by Claude Code's /usage UI."""
-    global _CLAUDE_USAGE_CACHE
-    now = datetime.now().timestamp()
-    if now - _CLAUDE_USAGE_CACHE[0] < 60:
-        return _CLAUDE_USAGE_CACHE[1]
+    """Return Claude windows, retaining this helper for existing callers."""
+    return claude_usage(home)[0]
+
+
+def claude_usage(home: Path) -> tuple[list[dict[str, Any]], str, float | None]:
+    """Share successful windows and retry timing across one-shot collector runs."""
+    cache_key = hashlib.sha256(str(home).encode()).hexdigest()[:16]
+    cache_dir = Path(os.getenv("XDG_CACHE_HOME", Path.home() / ".cache")) / "agent-pulse" / cache_key
     try:
-        credentials = json.loads((home / ".credentials.json").read_text())
-        token = credentials["claudeAiOauth"]["accessToken"]
-        request = urllib.request.Request(
-            "https://api.anthropic.com/api/oauth/usage",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json",
-                     "User-Agent": "agent-pulse/0.1"},
-        )
-        with urllib.request.urlopen(request, timeout=5) as response:
-            payload = json.load(response)
-    except (OSError, KeyError, ValueError, TypeError, urllib.error.URLError):
-        return _CLAUDE_USAGE_CACHE[1]
+        cache_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        with (cache_dir / "claude-usage.lock").open("a+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            cache_file = cache_dir / "claude-usage.json"
+            try:
+                cached = json.loads(cache_file.read_text())
+            except (OSError, ValueError, TypeError):
+                cached = {}
+            now = time.time()
+            windows = cached.get("windows", [])
+            if not isinstance(windows, list):
+                windows = []
+            status = cached.get("status", "unavailable")
+            try:
+                next_attempt = float(cached.get("next_attempt_at", 0))
+            except (TypeError, ValueError):
+                next_attempt = 0
+            try:
+                fetched_at = float(cached["fetched_at"])
+            except (KeyError, TypeError, ValueError):
+                fetched_at = next_attempt - 300 if status == "current" and windows and next_attempt else None
+            if now < next_attempt:
+                return windows, ("" if windows else "unavailable") if status == "current" else status, fetched_at
+            try:
+                credentials = json.loads((home / ".credentials.json").read_text())
+                token = credentials["claudeAiOauth"]["accessToken"]
+                request = urllib.request.Request(
+                    "https://api.anthropic.com/api/oauth/usage",
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json",
+                             "User-Agent": "agent-pulse/0.1"},
+                )
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    fetched = parse_claude_windows(json.load(response))
+                fetched_at = time.time()
+                cached = {"windows": fetched, "status": "current", "failures": 0,
+                          "fetched_at": fetched_at, "next_attempt_at": fetched_at + 300}
+            except urllib.error.HTTPError as exc:
+                try:
+                    failures = min(int(cached.get("failures", 0)) + 1, 5)
+                except (TypeError, ValueError):
+                    failures = 1
+                retry = min(3600, 120 * 2 ** (failures - 1)) if exc.code == 429 else 60
+                if exc.code == 429:
+                    try:
+                        retry = max(retry, int(exc.headers.get("Retry-After", "0")))
+                    except (AttributeError, TypeError, ValueError):
+                        pass
+                cached = {"windows": windows, "status": "rate_limited" if exc.code == 429 else "unavailable",
+                          "failures": failures, "fetched_at": fetched_at, "next_attempt_at": now + retry}
+            except (OSError, KeyError, ValueError, TypeError, urllib.error.URLError):
+                cached = {"windows": windows, "status": "unavailable", "failures": 0,
+                          "fetched_at": fetched_at, "next_attempt_at": now + 60}
+            with tempfile.NamedTemporaryFile("w", dir=cache_dir, delete=False) as temporary:
+                json.dump(cached, temporary)
+                temporary_path = temporary.name
+            os.replace(temporary_path, cache_file)
+            status = cached["status"]
+            return cached["windows"], ("" if cached["windows"] else "unavailable") if status == "current" else status, cached["fetched_at"]
+    except OSError:
+        return [], "unavailable", None
+
+
+def parse_claude_windows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     windows = []
     for limit in payload.get("limits", []):
         if limit.get("percent") is None:
@@ -169,7 +227,6 @@ def claude_rate_windows(home: Path) -> list[dict[str, Any]]:
             reset_at = datetime.fromisoformat(str(limit["resets_at"]).replace("Z", "+00:00")).astimezone().strftime("%a %H:%M")
         windows.append({"label": label, "used_percent": float(limit["percent"]),
                         "reset_at": reset_at, "severity": limit.get("severity", "normal")})
-    _CLAUDE_USAGE_CACHE = (now, windows)
     return windows
 
 
@@ -228,8 +285,8 @@ def summarize(name: str, daily: dict[str, int], sessions: dict[str, int], today:
 
 def collect(config: dict[str, Any], now: datetime | None = None) -> dict[str, Any]:
     now = now or datetime.now().astimezone()
-    codex, cdaily = codex_metrics(Path(config["codex_home"]), now)
-    claude, adaily = claude_metrics(Path(config["claude_home"]), now, bool(config.get("claude_online_usage", True)))
+    codex, cdaily = codex_metrics(Path(config["codex_home"]).expanduser(), now)
+    claude, adaily = claude_metrics(Path(config["claude_home"]).expanduser(), now, bool(config.get("claude_online_usage", True)))
     totals = []
     for offset in range(6, -1, -1):
         day = now.date() - timedelta(days=offset)
@@ -242,29 +299,20 @@ def collect(config: dict[str, Any], now: datetime | None = None) -> dict[str, An
             "quota_note": "Rate windows are included only when reported by the providers."}
 
 
-class Handler(BaseHTTPRequestHandler):
-    config: dict[str, Any] = DEFAULT_CONFIG
-    def do_GET(self) -> None:
-        if self.path not in ("/v1/stats", "/health"):
-            self.send_error(404); return
-        body = json.dumps({"status": "ok"} if self.path == "/health" else collect(self.config)).encode()
-        self.send_response(200); self.send_header("Content-Type", "application/json")
-        self.send_header("Cache-Control", "no-store"); self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
-    def log_message(self, fmt: str, *args: Any) -> None:
-        return
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Agent Pulse local metrics service")
-    parser.add_argument("--config", type=Path); parser.add_argument("--once", action="store_true")
+    parser = argparse.ArgumentParser(description="Agent Pulse local metrics collector")
+    parser.add_argument("--config", type=Path)
+    parser.add_argument("--once", action="store_true", help="retained for older callers")
+    usage = parser.add_mutually_exclusive_group()
+    usage.add_argument("--online", action="store_true", help="fetch Claude online usage")
+    usage.add_argument("--offline", action="store_true", help="skip Claude online usage")
+    parser.add_argument("--refresh-id", help="unique widget refresh identifier")
     args = parser.parse_args(); config = load_config(args.config)
-    if args.once:
-        print(json.dumps(collect(config), indent=2)); return
-    Handler.config = config
-    server = ThreadingHTTPServer((str(config["host"]), int(config["port"])), Handler)
-    print(f"Agent Pulse listening on http://{config['host']}:{config['port']}")
-    server.serve_forever()
+    if args.online:
+        config["claude_online_usage"] = True
+    elif args.offline:
+        config["claude_online_usage"] = False
+    print(json.dumps(collect(config)))
 
 if __name__ == "__main__":
     main()

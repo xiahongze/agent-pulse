@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 — 2026-09-25
+
+- Bundled the collector in the plasmoid and removed the persistent local service
+- Added a widget setting for optional Claude online usage
+- Simplified installation to a single widget package
+- Cached Claude usage windows across refreshes and delayed retries after provider rate limits
+- Show when Claude usage windows were last fetched from the API
+
 ## 0.4.2 — 2026-09-24
 
 - Restored the refresh action before the rightmost icon-only pin

@@ -5,12 +5,15 @@ import org.kde.kirigami as Kirigami
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
+import org.kde.plasma.plasma5support as Plasma5Support
 
 PlasmoidItem {
     id: root
     property var snapshot: ({providers: [], history: [], generated_at: ""})
     property bool busy: false
     property string errorText: ""
+    property string pendingCommand: ""
+    property int refreshId: 0
     property var accents: ({cyan:"#22d3ee", violet:"#a78bfa", amber:"#fbbf24", nord:"#88c0d0", solarized:"#2aa198"})
     property color accent: accents[Plasmoid.configuration.palette] || Kirigami.Theme.highlightColor
     property bool isDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
@@ -77,7 +80,7 @@ PlasmoidItem {
                 delegate: Rectangle {
                     required property var modelData
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 142 + modelData.rate_windows.length * 32
+                    Layout.preferredHeight: 142 + modelData.rate_windows.length * 32 + (modelData.usage_status ? 20 : 0)
                     radius: 9
                     color: root.cardSurface
                     border.color: Qt.alpha(root.accent, 0.3)
@@ -87,8 +90,17 @@ PlasmoidItem {
                         spacing: Kirigami.Units.smallSpacing
                         RowLayout { Layout.fillWidth: true; Rectangle { width: 8; height: 8; radius: 4; color: modelData.available ? root.accent : root.muted } Controls.Label { text: modelData.name.toUpperCase(); color: root.ink; font.bold: true; font.letterSpacing: 1 } Item { Layout.fillWidth: true } Controls.Label { text: modelData.available ? i18n("ONLINE") : i18n("NO DATA"); color: modelData.available ? root.accent : root.muted; font.pixelSize: 10; font.family: "monospace" } }
                         Repeater { model: modelData.rate_windows; delegate: RateWindow { required property var modelData; label: modelData.label; percentage: modelData.used_percent; resetAt: modelData.reset_at; accent: root.accent; ink: root.ink; muted: root.muted } }
+                        Controls.Label {
+                            visible: modelData.name === "Claude" && Boolean(modelData.usage_status)
+                            text: modelData.usage_status === "rate_limited" ? i18n("USAGE RATE LIMITED • RETRYING")
+                                : modelData.usage_status === "disabled" ? i18n("ONLINE USAGE OFF")
+                                : i18n("USAGE UNAVAILABLE • RETRYING")
+                            color: root.muted
+                            font.pixelSize: 9
+                            font.family: "monospace"
+                        }
                         RowLayout { Layout.fillWidth: true; spacing: Kirigami.Units.smallSpacing; Metric { label: i18n("TOKENS • 7D"); value: modelData.available ? root.compact(modelData.tokens_7d) : "—"; ink: root.ink; muted: root.muted } Metric { label: i18n("SESSIONS • 7D"); value: modelData.available ? modelData.sessions_7d : "—"; ink: root.ink; muted: root.muted } Metric { label: i18n("TOKENS • TODAY"); value: modelData.available ? root.compact(modelData.tokens_today) : "—"; ink: root.ink; muted: root.muted } }
-                        Controls.Label { text: modelData.available ? i18n("SOURCE  %1", modelData.source_updated || i18n("CURRENT")) : (modelData.status_detail || i18n("NO LOCAL DATA")); color: root.muted; font.pixelSize: 9; font.family: "monospace" }
+                        Controls.Label { text: !modelData.available ? (modelData.status_detail || i18n("NO LOCAL DATA")) : modelData.usage_updated ? i18n("SOURCE %1  •  API FETCHED %2", modelData.source_updated || i18n("CURRENT"), modelData.usage_updated) : i18n("SOURCE  %1", modelData.source_updated || i18n("CURRENT")); color: root.muted; font.pixelSize: 9; font.family: "monospace" }
                     }
                 }
             }
@@ -98,11 +110,56 @@ PlasmoidItem {
                 Repeater { model: root.snapshot.history || []; delegate: ColumnLayout { required property var modelData; Layout.fillWidth: true; spacing: 3; Item { Layout.preferredHeight: 38; Layout.fillWidth: true; Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Math.max(3, 38 * modelData.ratio); radius: 2; color: root.accent } } Controls.Label { Layout.alignment: Qt.AlignHCenter; text: modelData.label; color: root.muted; font.pixelSize: 8 } } }
             }
             Item { Layout.fillHeight: true }
-            RowLayout { Layout.fillWidth: true; Controls.Label { text: root.snapshot.generated_at ? i18n("UPDATED %1", root.snapshot.generated_at) : i18n("WAITING FOR SERVICE"); color: root.muted; font.pixelSize: 9; font.family: "monospace" } Item { Layout.fillWidth: true } Controls.Label { text: i18n("%1s AUTO", Plasmoid.configuration.refreshSeconds); color: root.muted; font.pixelSize: 9; font.family: "monospace" } }
+            RowLayout { Layout.fillWidth: true; Controls.Label { text: root.snapshot.generated_at ? i18n("UPDATED %1", root.snapshot.generated_at) : i18n("WAITING FOR DATA"); color: root.muted; font.pixelSize: 9; font.family: "monospace" } Item { Layout.fillWidth: true } Controls.Label { text: i18n("%1s AUTO", Plasmoid.configuration.refreshSeconds); color: root.muted; font.pixelSize: 9; font.family: "monospace" } }
         }
     }
 
-    Timer { interval: Math.max(15, Plasmoid.configuration.refreshSeconds) * 1000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refresh() }
+    Plasma5Support.DataSource {
+        id: collector
+        engine: "executable"
+        interval: 0
+        onNewData: function(source, data) {
+            if (source !== root.pendingCommand || data["exit code"] === undefined)
+                return
+            collector.disconnectSource(source)
+            root.pendingCommand = ""
+            root.busy = false
+            refreshTimeout.stop()
+            if (data["exit code"] !== 0 || data["exit status"] !== 0) {
+                root.errorText = data["exit code"] === 127 ? i18n("PYTHON 3 NOT FOUND") : i18n("COLLECTOR FAILED")
+                return
+            }
+            try {
+                let result = JSON.parse(data.stdout)
+                if (!Array.isArray(result.providers) || !Array.isArray(result.history))
+                    throw new Error("Invalid snapshot")
+                root.snapshot = result
+                root.errorText = ""
+            } catch (e) {
+                root.errorText = i18n("INVALID COLLECTOR RESPONSE")
+            }
+        }
+    }
+    Component.onCompleted: Qt.callLater(refresh)
+    Timer { interval: Math.max(15, Plasmoid.configuration.refreshSeconds) * 1000; running: true; repeat: true; onTriggered: root.refresh() }
+    Timer { id: refreshTimeout; interval: 20000; onTriggered: { if (root.pendingCommand) collector.disconnectSource(root.pendingCommand); root.pendingCommand = ""; root.busy = false; root.errorText = i18n("COLLECTOR TIMED OUT") } }
     function compact(n) { n=Number(n||0); return n>=1000000?(n/1000000).toFixed(1)+"M":n>=1000?(n/1000).toFixed(1)+"K":String(n) }
-    function refresh() { busy=true; errorText=""; let x=new XMLHttpRequest(); x.open("GET",Plasmoid.configuration.endpoint); x.onreadystatechange=function(){ if(x.readyState===XMLHttpRequest.DONE){busy=false;if(x.status===200){try{snapshot=JSON.parse(x.responseText)}catch(e){errorText=i18n("INVALID SERVICE RESPONSE")}}else errorText=i18n("SERVICE OFFLINE")}}; x.send() }
+    function shellQuote(value) { return "'" + value.replace(/'/g, "'\\''") + "'" }
+    function refresh() {
+        if (busy)
+            return
+        if (!collector.valid) {
+            errorText = i18n("PLASMA EXECUTABLE ENGINE UNAVAILABLE")
+            return
+        }
+        let scriptUrl = Qt.resolvedUrl("../code/agent_pulse.py").toString()
+        let scriptPath = decodeURIComponent(scriptUrl.replace(/^file:\/\//, ""))
+        let command = "/usr/bin/env python3 " + shellQuote(scriptPath) + " --once --refresh-id " + (++refreshId)
+        command += Plasmoid.configuration.claudeOnlineUsage ? " --online" : " --offline"
+        pendingCommand = command
+        busy = true
+        errorText = ""
+        refreshTimeout.restart()
+        collector.connectSource(command)
+    }
 }

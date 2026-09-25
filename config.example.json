@@ -1,8 +1,4 @@
 {
-  "host": "127.0.0.1",
-  "port": 42427,
-  "codex_binary": "codex",
-  "claude_binary": "claude",
   "codex_home": "~/.codex",
   "claude_home": "~/.claude",
   "claude_online_usage": true

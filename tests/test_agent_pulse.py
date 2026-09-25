@@ -22,8 +22,10 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(result["history"][-1]["tokens"], 2000)
             self.assertEqual(result["privacy"], "local-history; provider usage lookup enabled")
 
-    def test_defaults_bind_loopback(self):
-        self.assertEqual(load_config(Path("/does/not/exist"))["host"], "127.0.0.1")
+    def test_defaults_use_local_history(self):
+        config = load_config(Path("/does/not/exist"))
+        self.assertEqual(config["codex_home"], str(Path.home() / ".codex"))
+        self.assertEqual(config["claude_home"], str(Path.home() / ".claude"))
 
     def test_bad_codex_schema_isolated_from_claude(self):
         with tempfile.TemporaryDirectory() as tmp:

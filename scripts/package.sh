@@ -10,5 +10,6 @@ with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
     for item in [root / "metadata.json", root / "LICENSE", *(root / "contents").rglob("*")]:
         if item.is_file():
             archive.write(item, item.relative_to(root))
+    archive.write(root / "src/agent_pulse.py", "contents/code/agent_pulse.py")
 PY
 echo "dist/agent-pulse.plasmoid"
