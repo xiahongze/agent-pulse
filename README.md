@@ -31,6 +31,8 @@ The top-level non-interactive commands do not directly print quota, but Codex re
 
 For OAuth-based Claude accounts, Agent Pulse reads only the access token from `.credentials.json` and sends it to Anthropic's official HTTPS `/api/oauth/usage` endpoint—the same source as Claude Code's `/usage` screen. This supplies the 5-hour, weekly, and any model-scoped windows. The token is never printed, logged, or stored elsewhere. Disable **Fetch online rate windows** in widget settings to keep collection fully offline; history continues to work.
 
+Successful Claude usage windows are cached locally for five minutes so each widget refresh does not call Anthropic again. The cache contains only displayed percentages and reset times, never credentials. If Anthropic rate limits a request, Agent Pulse keeps the last available windows and spaces out retries; the widget shows the rate-limit state when no current windows are available.
+
 The collector never reads prompt/response fields, tool calls, or source content. It prints one JSON snapshot to the widget and exits. Upstream file schemas are not public contracts, so unavailable or changed data is omitted rather than guessed.
 
 ## Develop and package

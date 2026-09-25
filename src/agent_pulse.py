@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
+import hashlib
 import json
 import os
 import sqlite3
+import tempfile
+import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
@@ -19,9 +23,6 @@ DEFAULT_CONFIG = {
     "claude_home": str(Path.home() / ".claude"),
     "claude_online_usage": True,
 }
-
-_CLAUDE_USAGE_CACHE: tuple[float, list[dict[str, Any]]] = (0.0, [])
-
 
 def load_config(path: Path | None = None) -> dict[str, Any]:
     config = dict(DEFAULT_CONFIG)
@@ -129,28 +130,80 @@ def claude_metrics(home: Path, today: datetime, online_usage: bool = True) -> tu
     result = summarize("Claude", daily, sessions, today)
     result["source_updated"] = max(raw_daily, default=cache_date or "")
     if online_usage:
-        result["rate_windows"] = claude_rate_windows(home)
+        result["rate_windows"], result["usage_status"] = claude_usage(home)
+    else:
+        result["usage_status"] = "disabled"
     return result, daily
 
 
 def claude_rate_windows(home: Path) -> list[dict[str, Any]]:
-    """Fetch the same read-only subscription windows used by Claude Code's /usage UI."""
-    global _CLAUDE_USAGE_CACHE
-    now = datetime.now().timestamp()
-    if now - _CLAUDE_USAGE_CACHE[0] < 60:
-        return _CLAUDE_USAGE_CACHE[1]
+    """Return Claude windows, retaining this helper for existing callers."""
+    return claude_usage(home)[0]
+
+
+def claude_usage(home: Path) -> tuple[list[dict[str, Any]], str]:
+    """Share successful windows and retry timing across one-shot collector runs."""
+    cache_key = hashlib.sha256(str(home).encode()).hexdigest()[:16]
+    cache_dir = Path(os.getenv("XDG_CACHE_HOME", Path.home() / ".cache")) / "agent-pulse" / cache_key
     try:
-        credentials = json.loads((home / ".credentials.json").read_text())
-        token = credentials["claudeAiOauth"]["accessToken"]
-        request = urllib.request.Request(
-            "https://api.anthropic.com/api/oauth/usage",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json",
-                     "User-Agent": "agent-pulse/0.1"},
-        )
-        with urllib.request.urlopen(request, timeout=5) as response:
-            payload = json.load(response)
-    except (OSError, KeyError, ValueError, TypeError, urllib.error.URLError):
-        return _CLAUDE_USAGE_CACHE[1]
+        cache_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        with (cache_dir / "claude-usage.lock").open("a+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            cache_file = cache_dir / "claude-usage.json"
+            try:
+                cached = json.loads(cache_file.read_text())
+            except (OSError, ValueError, TypeError):
+                cached = {}
+            now = time.time()
+            windows = cached.get("windows", [])
+            if not isinstance(windows, list):
+                windows = []
+            status = cached.get("status", "unavailable")
+            try:
+                next_attempt = float(cached.get("next_attempt_at", 0))
+            except (TypeError, ValueError):
+                next_attempt = 0
+            if now < next_attempt:
+                return windows, ("" if windows else "unavailable") if status == "current" else status
+            try:
+                credentials = json.loads((home / ".credentials.json").read_text())
+                token = credentials["claudeAiOauth"]["accessToken"]
+                request = urllib.request.Request(
+                    "https://api.anthropic.com/api/oauth/usage",
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json",
+                             "User-Agent": "agent-pulse/0.1"},
+                )
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    fetched = parse_claude_windows(json.load(response))
+                cached = {"windows": fetched, "status": "current", "failures": 0,
+                          "next_attempt_at": now + 300}
+            except urllib.error.HTTPError as exc:
+                try:
+                    failures = min(int(cached.get("failures", 0)) + 1, 5)
+                except (TypeError, ValueError):
+                    failures = 1
+                retry = min(3600, 120 * 2 ** (failures - 1)) if exc.code == 429 else 60
+                if exc.code == 429:
+                    try:
+                        retry = max(retry, int(exc.headers.get("Retry-After", "0")))
+                    except (AttributeError, TypeError, ValueError):
+                        pass
+                cached = {"windows": windows, "status": "rate_limited" if exc.code == 429 else "unavailable",
+                          "failures": failures, "next_attempt_at": now + retry}
+            except (OSError, KeyError, ValueError, TypeError, urllib.error.URLError):
+                cached = {"windows": windows, "status": "unavailable", "failures": 0,
+                          "next_attempt_at": now + 60}
+            with tempfile.NamedTemporaryFile("w", dir=cache_dir, delete=False) as temporary:
+                json.dump(cached, temporary)
+                temporary_path = temporary.name
+            os.replace(temporary_path, cache_file)
+            status = cached["status"]
+            return cached["windows"], ("" if cached["windows"] else "unavailable") if status == "current" else status
+    except OSError:
+        return [], "unavailable"
+
+
+def parse_claude_windows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     windows = []
     for limit in payload.get("limits", []):
         if limit.get("percent") is None:
@@ -164,7 +217,6 @@ def claude_rate_windows(home: Path) -> list[dict[str, Any]]:
             reset_at = datetime.fromisoformat(str(limit["resets_at"]).replace("Z", "+00:00")).astimezone().strftime("%a %H:%M")
         windows.append({"label": label, "used_percent": float(limit["percent"]),
                         "reset_at": reset_at, "severity": limit.get("severity", "normal")})
-    _CLAUDE_USAGE_CACHE = (now, windows)
     return windows
 
 

@@ -80,7 +80,7 @@ PlasmoidItem {
                 delegate: Rectangle {
                     required property var modelData
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 142 + modelData.rate_windows.length * 32
+                    Layout.preferredHeight: 142 + modelData.rate_windows.length * 32 + (modelData.usage_status ? 20 : 0)
                     radius: 9
                     color: root.cardSurface
                     border.color: Qt.alpha(root.accent, 0.3)
@@ -90,6 +90,15 @@ PlasmoidItem {
                         spacing: Kirigami.Units.smallSpacing
                         RowLayout { Layout.fillWidth: true; Rectangle { width: 8; height: 8; radius: 4; color: modelData.available ? root.accent : root.muted } Controls.Label { text: modelData.name.toUpperCase(); color: root.ink; font.bold: true; font.letterSpacing: 1 } Item { Layout.fillWidth: true } Controls.Label { text: modelData.available ? i18n("ONLINE") : i18n("NO DATA"); color: modelData.available ? root.accent : root.muted; font.pixelSize: 10; font.family: "monospace" } }
                         Repeater { model: modelData.rate_windows; delegate: RateWindow { required property var modelData; label: modelData.label; percentage: modelData.used_percent; resetAt: modelData.reset_at; accent: root.accent; ink: root.ink; muted: root.muted } }
+                        Controls.Label {
+                            visible: modelData.name === "Claude" && Boolean(modelData.usage_status)
+                            text: modelData.usage_status === "rate_limited" ? i18n("USAGE RATE LIMITED • RETRYING")
+                                : modelData.usage_status === "disabled" ? i18n("ONLINE USAGE OFF")
+                                : i18n("USAGE UNAVAILABLE • RETRYING")
+                            color: root.muted
+                            font.pixelSize: 9
+                            font.family: "monospace"
+                        }
                         RowLayout { Layout.fillWidth: true; spacing: Kirigami.Units.smallSpacing; Metric { label: i18n("TOKENS • 7D"); value: modelData.available ? root.compact(modelData.tokens_7d) : "—"; ink: root.ink; muted: root.muted } Metric { label: i18n("SESSIONS • 7D"); value: modelData.available ? modelData.sessions_7d : "—"; ink: root.ink; muted: root.muted } Metric { label: i18n("TOKENS • TODAY"); value: modelData.available ? root.compact(modelData.tokens_today) : "—"; ink: root.ink; muted: root.muted } }
                         Controls.Label { text: modelData.available ? i18n("SOURCE  %1", modelData.source_updated || i18n("CURRENT")) : (modelData.status_detail || i18n("NO LOCAL DATA")); color: root.muted; font.pixelSize: 9; font.family: "monospace" }
                     }
