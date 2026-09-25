@@ -1,25 +1,20 @@
 #!/usr/bin/env python3
-"""Local-only metrics service for Agent Pulse. Uses Python's standard library."""
+"""One-shot local metrics collector for Agent Pulse. Uses Python's standard library."""
 from __future__ import annotations
 
 import argparse
 import json
 import os
-import shutil
 import sqlite3
 import urllib.error
 import urllib.request
 from collections import defaultdict
 from contextlib import closing
 from datetime import datetime, timedelta
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
 DEFAULT_CONFIG = {
-    "host": "127.0.0.1", "port": 42427,
-    "codex_binary": shutil.which("codex") or str(Path.home() / ".bun/bin/codex"),
-    "claude_binary": shutil.which("claude") or str(Path.home() / ".local/bin/claude"),
     "codex_home": str(Path.home() / ".codex"),
     "claude_home": str(Path.home() / ".claude"),
     "claude_online_usage": True,
@@ -228,8 +223,8 @@ def summarize(name: str, daily: dict[str, int], sessions: dict[str, int], today:
 
 def collect(config: dict[str, Any], now: datetime | None = None) -> dict[str, Any]:
     now = now or datetime.now().astimezone()
-    codex, cdaily = codex_metrics(Path(config["codex_home"]), now)
-    claude, adaily = claude_metrics(Path(config["claude_home"]), now, bool(config.get("claude_online_usage", True)))
+    codex, cdaily = codex_metrics(Path(config["codex_home"]).expanduser(), now)
+    claude, adaily = claude_metrics(Path(config["claude_home"]).expanduser(), now, bool(config.get("claude_online_usage", True)))
     totals = []
     for offset in range(6, -1, -1):
         day = now.date() - timedelta(days=offset)
@@ -242,29 +237,20 @@ def collect(config: dict[str, Any], now: datetime | None = None) -> dict[str, An
             "quota_note": "Rate windows are included only when reported by the providers."}
 
 
-class Handler(BaseHTTPRequestHandler):
-    config: dict[str, Any] = DEFAULT_CONFIG
-    def do_GET(self) -> None:
-        if self.path not in ("/v1/stats", "/health"):
-            self.send_error(404); return
-        body = json.dumps({"status": "ok"} if self.path == "/health" else collect(self.config)).encode()
-        self.send_response(200); self.send_header("Content-Type", "application/json")
-        self.send_header("Cache-Control", "no-store"); self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
-    def log_message(self, fmt: str, *args: Any) -> None:
-        return
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Agent Pulse local metrics service")
-    parser.add_argument("--config", type=Path); parser.add_argument("--once", action="store_true")
+    parser = argparse.ArgumentParser(description="Agent Pulse local metrics collector")
+    parser.add_argument("--config", type=Path)
+    parser.add_argument("--once", action="store_true", help="retained for older callers")
+    usage = parser.add_mutually_exclusive_group()
+    usage.add_argument("--online", action="store_true", help="fetch Claude online usage")
+    usage.add_argument("--offline", action="store_true", help="skip Claude online usage")
+    parser.add_argument("--refresh-id", help="unique widget refresh identifier")
     args = parser.parse_args(); config = load_config(args.config)
-    if args.once:
-        print(json.dumps(collect(config), indent=2)); return
-    Handler.config = config
-    server = ThreadingHTTPServer((str(config["host"]), int(config["port"])), Handler)
-    print(f"Agent Pulse listening on http://{config['host']}:{config['port']}")
-    server.serve_forever()
+    if args.online:
+        config["claude_online_usage"] = True
+    elif args.offline:
+        config["claude_online_usage"] = False
+    print(json.dumps(collect(config)))
 
 if __name__ == "__main__":
     main()

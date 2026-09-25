@@ -4,11 +4,11 @@
     "Authors": [{"Name": "Hongze Xia"}],
     "Category": "System Information",
     "Description": "Private, local usage telemetry for Codex and Claude Code",
-    "Icon": "agent-pulse",
+    "Icon": "view-statistics",
     "Id": "io.github.xiahongze.agentpulse",
     "License": "MIT",
     "Name": "Agent Pulse",
-    "Version": "0.4.2",
+    "Version": "0.5.0",
     "Website": "https://github.com/xiahongze/agent-pulse"
   },
   "X-Plasma-API-Minimum-Version": "6.0",

@@ -5,12 +5,15 @@ import org.kde.kirigami as Kirigami
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
+import org.kde.plasma.plasma5support as Plasma5Support
 
 PlasmoidItem {
     id: root
     property var snapshot: ({providers: [], history: [], generated_at: ""})
     property bool busy: false
     property string errorText: ""
+    property string pendingCommand: ""
+    property int refreshId: 0
     property var accents: ({cyan:"#22d3ee", violet:"#a78bfa", amber:"#fbbf24", nord:"#88c0d0", solarized:"#2aa198"})
     property color accent: accents[Plasmoid.configuration.palette] || Kirigami.Theme.highlightColor
     property bool isDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
@@ -98,11 +101,56 @@ PlasmoidItem {
                 Repeater { model: root.snapshot.history || []; delegate: ColumnLayout { required property var modelData; Layout.fillWidth: true; spacing: 3; Item { Layout.preferredHeight: 38; Layout.fillWidth: true; Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Math.max(3, 38 * modelData.ratio); radius: 2; color: root.accent } } Controls.Label { Layout.alignment: Qt.AlignHCenter; text: modelData.label; color: root.muted; font.pixelSize: 8 } } }
             }
             Item { Layout.fillHeight: true }
-            RowLayout { Layout.fillWidth: true; Controls.Label { text: root.snapshot.generated_at ? i18n("UPDATED %1", root.snapshot.generated_at) : i18n("WAITING FOR SERVICE"); color: root.muted; font.pixelSize: 9; font.family: "monospace" } Item { Layout.fillWidth: true } Controls.Label { text: i18n("%1s AUTO", Plasmoid.configuration.refreshSeconds); color: root.muted; font.pixelSize: 9; font.family: "monospace" } }
+            RowLayout { Layout.fillWidth: true; Controls.Label { text: root.snapshot.generated_at ? i18n("UPDATED %1", root.snapshot.generated_at) : i18n("WAITING FOR DATA"); color: root.muted; font.pixelSize: 9; font.family: "monospace" } Item { Layout.fillWidth: true } Controls.Label { text: i18n("%1s AUTO", Plasmoid.configuration.refreshSeconds); color: root.muted; font.pixelSize: 9; font.family: "monospace" } }
         }
     }
 
-    Timer { interval: Math.max(15, Plasmoid.configuration.refreshSeconds) * 1000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refresh() }
+    Plasma5Support.DataSource {
+        id: collector
+        engine: "executable"
+        interval: 0
+        onNewData: function(source, data) {
+            if (source !== root.pendingCommand || data["exit code"] === undefined)
+                return
+            collector.disconnectSource(source)
+            root.pendingCommand = ""
+            root.busy = false
+            refreshTimeout.stop()
+            if (data["exit code"] !== 0 || data["exit status"] !== 0) {
+                root.errorText = data["exit code"] === 127 ? i18n("PYTHON 3 NOT FOUND") : i18n("COLLECTOR FAILED")
+                return
+            }
+            try {
+                let result = JSON.parse(data.stdout)
+                if (!Array.isArray(result.providers) || !Array.isArray(result.history))
+                    throw new Error("Invalid snapshot")
+                root.snapshot = result
+                root.errorText = ""
+            } catch (e) {
+                root.errorText = i18n("INVALID COLLECTOR RESPONSE")
+            }
+        }
+    }
+    Component.onCompleted: Qt.callLater(refresh)
+    Timer { interval: Math.max(15, Plasmoid.configuration.refreshSeconds) * 1000; running: true; repeat: true; onTriggered: root.refresh() }
+    Timer { id: refreshTimeout; interval: 20000; onTriggered: { if (root.pendingCommand) collector.disconnectSource(root.pendingCommand); root.pendingCommand = ""; root.busy = false; root.errorText = i18n("COLLECTOR TIMED OUT") } }
     function compact(n) { n=Number(n||0); return n>=1000000?(n/1000000).toFixed(1)+"M":n>=1000?(n/1000).toFixed(1)+"K":String(n) }
-    function refresh() { busy=true; errorText=""; let x=new XMLHttpRequest(); x.open("GET",Plasmoid.configuration.endpoint); x.onreadystatechange=function(){ if(x.readyState===XMLHttpRequest.DONE){busy=false;if(x.status===200){try{snapshot=JSON.parse(x.responseText)}catch(e){errorText=i18n("INVALID SERVICE RESPONSE")}}else errorText=i18n("SERVICE OFFLINE")}}; x.send() }
+    function shellQuote(value) { return "'" + value.replace(/'/g, "'\\''") + "'" }
+    function refresh() {
+        if (busy)
+            return
+        if (!collector.valid) {
+            errorText = i18n("PLASMA EXECUTABLE ENGINE UNAVAILABLE")
+            return
+        }
+        let scriptUrl = Qt.resolvedUrl("../code/agent_pulse.py").toString()
+        let scriptPath = decodeURIComponent(scriptUrl.replace(/^file:\/\//, ""))
+        let command = "/usr/bin/env python3 " + shellQuote(scriptPath) + " --once --refresh-id " + (++refreshId)
+        command += Plasmoid.configuration.claudeOnlineUsage ? " --online" : " --offline"
+        pendingCommand = command
+        busy = true
+        errorText = ""
+        refreshTimeout.restart()
+        collector.connectSource(command)
+    }
 }

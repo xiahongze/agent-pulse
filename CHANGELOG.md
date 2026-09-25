@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 — Unreleased
+
+- Bundled the collector in the plasmoid and removed the persistent local service
+- Added a widget setting for optional Claude online usage
+- Simplified installation to a single widget package
+
 ## 0.4.2 — 2026-09-24
 
 - Restored the refresh action before the rightmost icon-only pin
