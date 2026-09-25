@@ -100,7 +100,7 @@ PlasmoidItem {
                             font.family: "monospace"
                         }
                         RowLayout { Layout.fillWidth: true; spacing: Kirigami.Units.smallSpacing; Metric { label: i18n("TOKENS • 7D"); value: modelData.available ? root.compact(modelData.tokens_7d) : "—"; ink: root.ink; muted: root.muted } Metric { label: i18n("SESSIONS • 7D"); value: modelData.available ? modelData.sessions_7d : "—"; ink: root.ink; muted: root.muted } Metric { label: i18n("TOKENS • TODAY"); value: modelData.available ? root.compact(modelData.tokens_today) : "—"; ink: root.ink; muted: root.muted } }
-                        Controls.Label { text: modelData.available ? i18n("SOURCE  %1", modelData.source_updated || i18n("CURRENT")) : (modelData.status_detail || i18n("NO LOCAL DATA")); color: root.muted; font.pixelSize: 9; font.family: "monospace" }
+                        Controls.Label { text: !modelData.available ? (modelData.status_detail || i18n("NO LOCAL DATA")) : modelData.usage_updated ? i18n("SOURCE %1  •  API FETCHED %2", modelData.source_updated || i18n("CURRENT"), modelData.usage_updated) : i18n("SOURCE  %1", modelData.source_updated || i18n("CURRENT")); color: root.muted; font.pixelSize: 9; font.family: "monospace" }
                     }
                 }
             }

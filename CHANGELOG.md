@@ -6,6 +6,7 @@
 - Added a widget setting for optional Claude online usage
 - Simplified installation to a single widget package
 - Cached Claude usage windows across refreshes and delayed retries after provider rate limits
+- Show when Claude usage windows were last fetched from the API
 
 ## 0.4.2 — 2026-09-24
 

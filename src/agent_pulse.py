@@ -130,7 +130,12 @@ def claude_metrics(home: Path, today: datetime, online_usage: bool = True) -> tu
     result = summarize("Claude", daily, sessions, today)
     result["source_updated"] = max(raw_daily, default=cache_date or "")
     if online_usage:
-        result["rate_windows"], result["usage_status"] = claude_usage(home)
+        result["rate_windows"], result["usage_status"], fetched_at = claude_usage(home)
+        if fetched_at is not None:
+            try:
+                result["usage_updated"] = datetime.fromtimestamp(fetched_at).astimezone().strftime("%d %b %H:%M")
+            except (OverflowError, OSError, ValueError):
+                pass
     else:
         result["usage_status"] = "disabled"
     return result, daily
@@ -141,7 +146,7 @@ def claude_rate_windows(home: Path) -> list[dict[str, Any]]:
     return claude_usage(home)[0]
 
 
-def claude_usage(home: Path) -> tuple[list[dict[str, Any]], str]:
+def claude_usage(home: Path) -> tuple[list[dict[str, Any]], str, float | None]:
     """Share successful windows and retry timing across one-shot collector runs."""
     cache_key = hashlib.sha256(str(home).encode()).hexdigest()[:16]
     cache_dir = Path(os.getenv("XDG_CACHE_HOME", Path.home() / ".cache")) / "agent-pulse" / cache_key
@@ -163,8 +168,12 @@ def claude_usage(home: Path) -> tuple[list[dict[str, Any]], str]:
                 next_attempt = float(cached.get("next_attempt_at", 0))
             except (TypeError, ValueError):
                 next_attempt = 0
+            try:
+                fetched_at = float(cached["fetched_at"])
+            except (KeyError, TypeError, ValueError):
+                fetched_at = next_attempt - 300 if status == "current" and windows and next_attempt else None
             if now < next_attempt:
-                return windows, ("" if windows else "unavailable") if status == "current" else status
+                return windows, ("" if windows else "unavailable") if status == "current" else status, fetched_at
             try:
                 credentials = json.loads((home / ".credentials.json").read_text())
                 token = credentials["claudeAiOauth"]["accessToken"]
@@ -175,8 +184,9 @@ def claude_usage(home: Path) -> tuple[list[dict[str, Any]], str]:
                 )
                 with urllib.request.urlopen(request, timeout=5) as response:
                     fetched = parse_claude_windows(json.load(response))
+                fetched_at = time.time()
                 cached = {"windows": fetched, "status": "current", "failures": 0,
-                          "next_attempt_at": now + 300}
+                          "fetched_at": fetched_at, "next_attempt_at": fetched_at + 300}
             except urllib.error.HTTPError as exc:
                 try:
                     failures = min(int(cached.get("failures", 0)) + 1, 5)
@@ -189,18 +199,18 @@ def claude_usage(home: Path) -> tuple[list[dict[str, Any]], str]:
                     except (AttributeError, TypeError, ValueError):
                         pass
                 cached = {"windows": windows, "status": "rate_limited" if exc.code == 429 else "unavailable",
-                          "failures": failures, "next_attempt_at": now + retry}
+                          "failures": failures, "fetched_at": fetched_at, "next_attempt_at": now + retry}
             except (OSError, KeyError, ValueError, TypeError, urllib.error.URLError):
                 cached = {"windows": windows, "status": "unavailable", "failures": 0,
-                          "next_attempt_at": now + 60}
+                          "fetched_at": fetched_at, "next_attempt_at": now + 60}
             with tempfile.NamedTemporaryFile("w", dir=cache_dir, delete=False) as temporary:
                 json.dump(cached, temporary)
                 temporary_path = temporary.name
             os.replace(temporary_path, cache_file)
             status = cached["status"]
-            return cached["windows"], ("" if cached["windows"] else "unavailable") if status == "current" else status
+            return cached["windows"], ("" if cached["windows"] else "unavailable") if status == "current" else status, cached["fetched_at"]
     except OSError:
-        return [], "unavailable"
+        return [], "unavailable", None
 
 
 def parse_claude_windows(payload: dict[str, Any]) -> list[dict[str, Any]]:
