@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.0 — Unreleased
+## 0.5.0 — 2026-09-25
 
 - Bundled the collector in the plasmoid and removed the persistent local service
 - Added a widget setting for optional Claude online usage
