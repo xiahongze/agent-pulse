@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Include SQLite WAL writes in the Codex source timestamp so active sessions do not appear stale
+
 ## 0.5.0 — 2026-09-25
 
 - Bundled the collector in the plasmoid and removed the persistent local service
