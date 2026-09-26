@@ -54,7 +54,13 @@ def codex_metrics(home: Path, today: datetime) -> tuple[dict[str, Any], dict[str
         daily[key] += int(tokens or 0)
         sessions[key] += 1
     result = summarize("Codex", daily, sessions, today)
-    result["source_updated"] = datetime.fromtimestamp(db.stat().st_mtime).astimezone().strftime("%d %b %H:%M")
+    # SQLite can keep new writes in the WAL until its next checkpoint.
+    source_stamp = db.stat().st_mtime
+    try:
+        source_stamp = max(source_stamp, db.with_name(db.name + "-wal").stat().st_mtime)
+    except FileNotFoundError:
+        pass
+    result["source_updated"] = datetime.fromtimestamp(source_stamp).astimezone().strftime("%d %b %H:%M")
     result["rate_windows"] = latest_codex_limits(home)
     if result["rate_windows"]:
         result["plan"] = result["rate_windows"][0].get("plan", "")
