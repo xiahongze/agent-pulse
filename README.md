@@ -16,13 +16,13 @@ A native Plasma 6 widget for private, at-a-glance Codex and Claude Code activity
 - Full desktop dashboard plus a compact taskbar icon with a click-open popup
 - Pin control to keep the taskbar popup open while working elsewhere
 
-Enable **Show stacked usage instead of icon** in widget settings to display one compact line per agent, such as `CX 24%/8%` and `CL 12%/6%` (five-hour / weekly percentages used). Choose **All agents**, or turn it off and select Codex and/or Claude. Without quota windows, a line shows today’s tokens instead; `~` marks saved usage, and expired or unavailable readings show a dash. Selecting no agents falls back to the icon.
+Right-click the widget, choose **Show Alternatives…**, then select **Agent Pulse — Icon Only** or **Agent Pulse — Usage Stack**. The stack displays one compact line per agent, such as `CX 24%/8%` and `CL 12%/6%` (five-hour / weekly percentages used). In widget settings choose **All agents**, or turn it off and select Codex and/or Claude. Without quota windows, a line shows today’s tokens instead; `~` marks saved usage, and expired or unavailable readings show a dash. Selecting no agents falls back to the icon.
 
 The taskbar uses a transparent pulse symbol colored by the global panel theme. Hover for each provider’s first two quota windows, or today’s tokens when quotas are unavailable. Expired windows await fresh usage, and collection failures identify saved readings. Click to open the dashboard.
 
 ## Install on Plasma 6
 
-Install `agent-pulse.plasmoid` from the [latest release](https://github.com/xiahongze/agent-pulse/releases) with Plasma's **Install New Widgets > Install from Local File**, then search for **Agent Pulse** in the widget picker and add it to the desktop or panel. Plasma 6, its Plasma5Support executable engine, and Python 3.11+ are required. There is no service, port, or separate backend setup.
+Install `agent-pulse.plasmoid` (Icon Only) and `agent-pulse-usage.plasmoid` (Usage Stack) from the [latest release](https://github.com/xiahongze/agent-pulse/releases) with Plasma's **Install New Widgets > Install from Local File**, then search for **Agent Pulse** in the widget picker and add it to the desktop or panel. Plasma 6, its Plasma5Support executable engine, and Python 3.11+ are required. There is no service, port, or separate backend setup.
 
 To install from a checkout:
 
@@ -56,7 +56,7 @@ make lint
 make package
 ```
 
-The release artifact is `dist/agent-pulse.plasmoid`, including the collector. The project uses a native QML/Kirigami frontend and a Python standard-library collector. Plasma's executable data engine is part of the Plasma5Support compatibility layer and may require a future replacement.
+The release artifacts are `dist/agent-pulse.plasmoid` (Icon Only) and `dist/agent-pulse-usage.plasmoid` (Usage Stack), each including the collector. Install both for the native **Show Alternatives…** picker; `make install` does this automatically. The project uses a native QML/Kirigami frontend and a Python standard-library collector. Plasma's executable data engine is part of the Plasma5Support compatibility layer and may require a future replacement.
 
 ## Upgrading from a service-based release
 
@@ -74,4 +74,5 @@ The old configuration file can remain if it contains custom history locations; t
 
 ```bash
 kpackagetool6 --type Plasma/Applet --remove io.github.xiahongze.agentpulse
+kpackagetool6 --type Plasma/Applet --remove io.github.xiahongze.agentpulse.usage
 ```

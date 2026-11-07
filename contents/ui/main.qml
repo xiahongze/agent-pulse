@@ -63,7 +63,7 @@ PlasmoidItem {
     readonly property var taskbarRows: Taskbar.rows(snapshot.providers || [],
         Plasmoid.configuration.taskbarAllAgents, Plasmoid.configuration.taskbarCodex,
         Plasmoid.configuration.taskbarClaude, tooltipNow, Boolean(errorText))
-    readonly property bool showTaskbarUsage: Plasmoid.configuration.taskbarUsage && taskbarRows.length > 0
+    readonly property bool showTaskbarUsage: Plasmoid.pluginName === "io.github.xiahongze.agentpulse.usage" && taskbarRows.length > 0
 
     compactRepresentation: Item {
         implicitWidth: root.showTaskbarUsage ? usage.implicitWidth + Kirigami.Units.smallSpacing * 2 : Kirigami.Units.iconSizes.medium
