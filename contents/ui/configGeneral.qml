@@ -10,6 +10,14 @@ Kirigami.FormLayout {
     property alias cfg_themeMode: theme.currentValue
     property alias cfg_palette: palette.currentValue
     property alias cfg_desktopOpacity: desktopOpacity.value
+    property alias cfg_taskbarUsage: taskbarUsage.checked
+    property alias cfg_taskbarAllAgents: taskbarAllAgents.checked
+    property alias cfg_taskbarCodex: taskbarCodex.checked
+    property alias cfg_taskbarClaude: taskbarClaude.checked
+    property bool cfg_taskbarUsageDefault: false
+    property bool cfg_taskbarAllAgentsDefault: true
+    property bool cfg_taskbarCodexDefault: true
+    property bool cfg_taskbarClaudeDefault: true
     property alias cfg_pin: pin.checked
     property int cfg_refreshSecondsDefault: 60
     property bool cfg_claudeOnlineUsageDefault: true
@@ -22,6 +30,28 @@ Kirigami.FormLayout {
     Controls.ComboBox { id: theme; Kirigami.FormData.label: i18n("Theme:"); textRole: "text"; valueRole: "value"; model: [{text:i18n("System"),value:"system"},{text:i18n("Light"),value:"light"},{text:i18n("Dark"),value:"dark"}] }
     Controls.ComboBox { id: palette; Kirigami.FormData.label: i18n("Palette:"); textRole: "text"; valueRole: "value"; model: [{text:"Cyan",value:"cyan"},{text:"Violet",value:"violet"},{text:"Amber",value:"amber"},{text:"Nord",value:"nord"},{text:"Solarized",value:"solarized"}] }
     RowLayout { Kirigami.FormData.label: i18n("Desktop opacity:"); Controls.Slider { id: desktopOpacity; from: 10; to: 100; stepSize: 5; Layout.fillWidth: true } Controls.Label { text: Math.round(desktopOpacity.value) + "%"; Layout.minimumWidth: 42 } }
+    Controls.CheckBox {
+        id: taskbarUsage
+        Kirigami.FormData.label: i18n("Taskbar display:")
+        text: i18n("Show stacked usage instead of icon")
+    }
+    Controls.CheckBox {
+        id: taskbarAllAgents
+        Kirigami.FormData.label: i18n("Agents:")
+        text: i18n("All agents")
+        enabled: taskbarUsage.checked
+    }
+    RowLayout {
+        enabled: taskbarUsage.checked && !taskbarAllAgents.checked
+        Controls.CheckBox { id: taskbarCodex; text: i18n("Codex") }
+        Controls.CheckBox { id: taskbarClaude; text: i18n("Claude") }
+    }
+    Controls.Label {
+        visible: taskbarUsage.checked
+        text: i18n("CX = Codex, CL = Claude. Usage: 5-hour / weekly % used. Without quotas: tokens today. ~ marks saved usage. No agents selected shows the icon.")
+        wrapMode: Text.Wrap
+        Layout.fillWidth: true
+    }
     Controls.CheckBox { id: pin; Kirigami.FormData.label: i18n("Taskbar popup:"); text: i18n("Keep open when focus changes") }
     Controls.Label { text: i18n("Opacity applies only to the desktop dashboard. The taskbar popup keeps Plasma's native surface."); wrapMode: Text.Wrap; Layout.fillWidth: true }
     Controls.Label { text: i18n("Local history stays on this machine. Claude usage lookup sends your existing OAuth token only to Anthropic."); wrapMode: Text.Wrap; Layout.fillWidth: true }

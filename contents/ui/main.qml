@@ -1,4 +1,5 @@
 import QtQuick
+import "taskbar.js" as Taskbar
 import QtQuick.Controls as Controls
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
@@ -59,10 +60,15 @@ PlasmoidItem {
     property double tooltipNow: Date.now()
     Timer { interval: 30000; running: true; repeat: true; onTriggered: root.tooltipNow = Date.now() }
 
+    readonly property var taskbarRows: Taskbar.rows(snapshot.providers || [],
+        Plasmoid.configuration.taskbarAllAgents, Plasmoid.configuration.taskbarCodex,
+        Plasmoid.configuration.taskbarClaude, tooltipNow, Boolean(errorText))
+    readonly property bool showTaskbarUsage: Plasmoid.configuration.taskbarUsage && taskbarRows.length > 0
+
     compactRepresentation: Item {
-        implicitWidth: Kirigami.Units.iconSizes.medium
-        implicitHeight: implicitWidth
-        Layout.minimumWidth: Kirigami.Units.iconSizes.smallMedium
+        implicitWidth: root.showTaskbarUsage ? usage.implicitWidth + Kirigami.Units.smallSpacing * 2 : Kirigami.Units.iconSizes.medium
+        implicitHeight: root.showTaskbarUsage ? usage.implicitHeight : Kirigami.Units.iconSizes.medium
+        Layout.minimumWidth: Plasmoid.formFactor === PlasmaCore.Types.Vertical ? Kirigami.Units.iconSizes.smallMedium : implicitWidth
         Layout.preferredWidth: implicitWidth
         Layout.maximumWidth: Math.max(implicitWidth, height)
         Accessible.name: root.toolTipMainText + ": " + root.toolTipSubText
@@ -70,7 +76,16 @@ PlasmoidItem {
         activeFocusOnTab: true
         Keys.onSpacePressed: root.expanded = !root.expanded
         Keys.onReturnPressed: root.expanded = !root.expanded
+        TaskbarUsage {
+            id: usage
+            visible: root.showTaskbarUsage
+            anchors.centerIn: parent
+            width: Math.max(0, parent.width - Kirigami.Units.smallSpacing * 2)
+            height: Math.min(parent.height, implicitHeight)
+            rows: root.taskbarRows
+        }
         Kirigami.Icon {
+            visible: !root.showTaskbarUsage
             anchors.centerIn: parent
             width: Math.min(parent.width, parent.height)
             height: width
