@@ -16,6 +16,8 @@ A native Plasma 6 widget for private, at-a-glance Codex and Claude Code activity
 - Full desktop dashboard plus a compact taskbar icon with a click-open popup
 - Pin control to keep the taskbar popup open while working elsewhere
 
+The taskbar uses a transparent pulse symbol colored by the global panel theme. Hover for each provider’s first two quota windows, or today’s tokens when quotas are unavailable. Expired windows await fresh usage, and collection failures identify saved readings. Click to open the dashboard.
+
 ## Install on Plasma 6
 
 Install `agent-pulse.plasmoid` from the [latest release](https://github.com/xiahongze/agent-pulse/releases) with Plasma's **Install New Widgets > Install from Local File**, then search for **Agent Pulse** in the widget picker and add it to the desktop or panel. Plasma 6, its Plasma5Support executable engine, and Python 3.11+ are required. There is no service, port, or separate backend setup.

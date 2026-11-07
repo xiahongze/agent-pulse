@@ -29,15 +29,56 @@ PlasmoidItem {
     Plasmoid.title: i18n("Agent Pulse")
     // The desktop supplies its own translucent surface below; panel popups keep native Plasma chrome.
     Plasmoid.backgroundHints: root.isDesktop ? PlasmaCore.Types.NoBackground : PlasmaCore.Types.DefaultBackground
-    switchWidth: Plasmoid.formFactor === PlasmaCore.Types.Planar ? -1 : 360
-    switchHeight: Plasmoid.formFactor === PlasmaCore.Types.Planar ? -1 : 500
-    preferredRepresentation: Plasmoid.formFactor === PlasmaCore.Types.Planar ? fullRepresentation : null
+    switchWidth: 0
+    switchHeight: 0
+    preferredRepresentation: isDesktop ? fullRepresentation : compactRepresentation
     hideOnWindowDeactivate: !Plasmoid.configuration.pin
 
+    toolTipMainText: i18n("Agent Pulse")
+    toolTipSubText: {
+        const lines = [];
+        if (errorText)
+            lines.push(i18n("Last known usage · %1", errorText));
+        for (const provider of snapshot.providers || []) {
+            if (!provider.available) {
+                lines.push(i18n("%1 · no data", provider.name));
+                continue;
+            }
+            const windows = (provider.rate_windows || []).slice(0, 2).map(w => {
+                const expired = w.expired || (w.reset_epoch !== null && w.reset_epoch !== undefined && w.reset_epoch * 1000 <= tooltipNow);
+                return expired || w.used_percent === null || w.used_percent === undefined
+                    ? i18n("%1 awaiting usage", w.label)
+                    : i18n("%1 %2% used", w.label, Math.round(w.used_percent));
+            });
+            lines.push(i18n("%1 · %2", provider.name, windows.length ? windows.join(" · ") : i18n("%1 tokens today", compact(provider.tokens_today))));
+            if (provider.usage_status)
+                lines.push(provider.usage_status === "disabled" ? i18n("Online usage off") : i18n("Saved usage · retrying"));
+        }
+        return lines.length ? lines.join("\n") : i18n("Collecting local usage…");
+    }
+    property double tooltipNow: Date.now()
+    Timer { interval: 30000; running: true; repeat: true; onTriggered: root.tooltipNow = Date.now() }
+
     compactRepresentation: Item {
-        implicitWidth: Kirigami.Units.gridUnit * 2
+        implicitWidth: Kirigami.Units.iconSizes.medium
         implicitHeight: implicitWidth
-        Kirigami.Icon { anchors.fill: parent; anchors.margins: Kirigami.Units.smallSpacing; source: root.agentIcon; active: compactMouse.containsMouse }
+        Layout.minimumWidth: Kirigami.Units.iconSizes.smallMedium
+        Layout.preferredWidth: implicitWidth
+        Layout.maximumWidth: Math.max(implicitWidth, height)
+        Accessible.name: root.toolTipMainText + ": " + root.toolTipSubText
+        Accessible.role: Accessible.Button
+        activeFocusOnTab: true
+        Keys.onSpacePressed: root.expanded = !root.expanded
+        Keys.onReturnPressed: root.expanded = !root.expanded
+        Kirigami.Icon {
+            anchors.centerIn: parent
+            width: Math.min(parent.width, parent.height)
+            height: width
+            source: Qt.resolvedUrl("../icons/agent-pulse-symbolic.svg")
+            isMask: true
+            color: Kirigami.Theme.textColor
+            active: compactMouse.containsMouse
+        }
         MouseArea { id: compactMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.expanded = !root.expanded }
     }
 
