@@ -9,10 +9,10 @@ TestCase {
     function test_stacked_component_resizes() {
         const item = createTemporaryObject(usageComponent, this);
         verify(item !== null);
-        item.rows = [{text: "CX 24/8%", stale: false}, {text: "CL 12/6%", stale: true}];
+        item.rows = [{text: "CX 24%/8%", stale: false}, {text: "CL 12%/6%", stale: true}];
         tryCompare(item, "implicitHeight", 28);
         tryVerify(() => item.implicitWidth > 40 && item.implicitWidth < 110);
-        item.rows = [{text: "CX 24/8%", stale: false}];
+        item.rows = [{text: "CX 24%/8%", stale: false}];
         tryCompare(item, "implicitHeight", 14);
     }
     function provider(name, windows) {
@@ -29,9 +29,9 @@ TestCase {
     function test_stable_window_order() {
         const p = provider("Codex", [{label: "SONNET WEEKLY", used_percent: 99},
             {label: "WEEKLY", used_percent: 8.2}, {label: "5 HOUR", used_percent: 24.1}]);
-        compare(Taskbar.rows([p], true, true, true, 0, false)[0].text, "CX 24/8%");
+        compare(Taskbar.rows([p], true, true, true, 0, false)[0].text, "CX 24%/8%");
         p.rate_windows = [{label: "WEEKLY", used_percent: 8}];
-        compare(Taskbar.rows([p], true, true, true, 0, false)[0].text, "CX —/8%");
+        compare(Taskbar.rows([p], true, true, true, 0, false)[0].text, "CX —%/8%");
     }
     function test_expired_and_missing_usage() {
         compare(Taskbar.percentage({used_percent: 0}, 10000), "0");

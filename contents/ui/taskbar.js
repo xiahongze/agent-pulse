@@ -28,7 +28,7 @@ function rows(providers, allAgents, codex, claude, now, failed) {
             const short = windows.find(w => w.label === "5 HOUR");
             const weekly = windows.find(w => w.label === "WEEKLY");
             value = short || weekly
-                ? percentage(short, now) + "/" + percentage(weekly, now) + "%"
+                ? percentage(short, now) + "%/" + percentage(weekly, now) + "%"
                 : compactTokens(p.tokens_today) + " tok";
         }
         return {name: p.name, text: name + " " + (stale ? "~" : "") + value, stale: stale || !p.available};

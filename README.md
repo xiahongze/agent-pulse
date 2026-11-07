@@ -16,7 +16,7 @@ A native Plasma 6 widget for private, at-a-glance Codex and Claude Code activity
 - Full desktop dashboard plus a compact taskbar icon with a click-open popup
 - Pin control to keep the taskbar popup open while working elsewhere
 
-Enable **Show stacked usage instead of icon** in widget settings to display one compact line per agent, such as `CX 24/8%` and `CL 12/6%` (five-hour / weekly percentages used). Choose **All agents**, or turn it off and select Codex and/or Claude. Without quota windows, a line shows today’s tokens instead; `~` marks saved usage, and expired or unavailable readings show a dash. Selecting no agents falls back to the icon.
+Enable **Show stacked usage instead of icon** in widget settings to display one compact line per agent, such as `CX 24%/8%` and `CL 12%/6%` (five-hour / weekly percentages used). Choose **All agents**, or turn it off and select Codex and/or Claude. Without quota windows, a line shows today’s tokens instead; `~` marks saved usage, and expired or unavailable readings show a dash. Selecting no agents falls back to the icon.
 
 The taskbar uses a transparent pulse symbol colored by the global panel theme. Hover for each provider’s first two quota windows, or today’s tokens when quotas are unavailable. Expired windows await fresh usage, and collection failures identify saved readings. Click to open the dashboard.
 
