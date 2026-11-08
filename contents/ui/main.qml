@@ -1,4 +1,5 @@
 import QtQuick
+import "taskbar.js" as Taskbar
 import QtQuick.Controls as Controls
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
@@ -29,15 +30,70 @@ PlasmoidItem {
     Plasmoid.title: i18n("Agent Pulse")
     // The desktop supplies its own translucent surface below; panel popups keep native Plasma chrome.
     Plasmoid.backgroundHints: root.isDesktop ? PlasmaCore.Types.NoBackground : PlasmaCore.Types.DefaultBackground
-    switchWidth: Plasmoid.formFactor === PlasmaCore.Types.Planar ? -1 : 360
-    switchHeight: Plasmoid.formFactor === PlasmaCore.Types.Planar ? -1 : 500
-    preferredRepresentation: Plasmoid.formFactor === PlasmaCore.Types.Planar ? fullRepresentation : null
+    switchWidth: 0
+    switchHeight: 0
+    preferredRepresentation: isDesktop ? fullRepresentation : compactRepresentation
     hideOnWindowDeactivate: !Plasmoid.configuration.pin
 
+    toolTipMainText: i18n("Agent Pulse")
+    toolTipSubText: {
+        const lines = [];
+        if (errorText)
+            lines.push(i18n("Last known usage · %1", errorText));
+        for (const provider of snapshot.providers || []) {
+            if (!provider.available) {
+                lines.push(i18n("%1 · no data", provider.name));
+                continue;
+            }
+            const windows = (provider.rate_windows || []).slice(0, 2).map(w => {
+                const expired = w.expired || (w.reset_epoch !== null && w.reset_epoch !== undefined && w.reset_epoch * 1000 <= tooltipNow);
+                return expired || w.used_percent === null || w.used_percent === undefined
+                    ? i18n("%1 awaiting usage", w.label)
+                    : i18n("%1 %2% used", w.label, Math.round(w.used_percent));
+            });
+            lines.push(i18n("%1 · %2", provider.name, windows.length ? windows.join(" · ") : i18n("%1 tokens today", compact(provider.tokens_today))));
+            if (provider.usage_status)
+                lines.push(provider.usage_status === "disabled" ? i18n("Online usage off") : i18n("Saved usage · retrying"));
+        }
+        return lines.length ? lines.join("\n") : i18n("Collecting local usage…");
+    }
+    property double tooltipNow: Date.now()
+    Timer { interval: 30000; running: true; repeat: true; onTriggered: root.tooltipNow = Date.now() }
+
+    readonly property var taskbarRows: Taskbar.rows(snapshot.providers || [],
+        Plasmoid.configuration.taskbarAllAgents, Plasmoid.configuration.taskbarCodex,
+        Plasmoid.configuration.taskbarClaude, tooltipNow, Boolean(errorText))
+    readonly property bool showTaskbarUsage: Plasmoid.pluginName === "io.github.xiahongze.agentpulse.usage" && taskbarRows.length > 0
+
     compactRepresentation: Item {
-        implicitWidth: Kirigami.Units.gridUnit * 2
-        implicitHeight: implicitWidth
-        Kirigami.Icon { anchors.fill: parent; anchors.margins: Kirigami.Units.smallSpacing; source: root.agentIcon; active: compactMouse.containsMouse }
+        implicitWidth: root.showTaskbarUsage ? usage.implicitWidth + Kirigami.Units.smallSpacing * 2 : Kirigami.Units.iconSizes.medium
+        implicitHeight: root.showTaskbarUsage ? usage.implicitHeight : Kirigami.Units.iconSizes.medium
+        Layout.minimumWidth: Plasmoid.formFactor === PlasmaCore.Types.Vertical ? Kirigami.Units.iconSizes.smallMedium : implicitWidth
+        Layout.preferredWidth: implicitWidth
+        Layout.maximumWidth: Math.max(implicitWidth, height)
+        Accessible.name: root.toolTipMainText + ": " + root.toolTipSubText
+        Accessible.role: Accessible.Button
+        activeFocusOnTab: true
+        Keys.onSpacePressed: root.expanded = !root.expanded
+        Keys.onReturnPressed: root.expanded = !root.expanded
+        TaskbarUsage {
+            id: usage
+            visible: root.showTaskbarUsage
+            anchors.centerIn: parent
+            width: Math.max(0, parent.width - Kirigami.Units.smallSpacing * 2)
+            height: Math.min(parent.height, implicitHeight)
+            rows: root.taskbarRows
+        }
+        Kirigami.Icon {
+            visible: !root.showTaskbarUsage
+            anchors.centerIn: parent
+            width: Math.min(parent.width, parent.height)
+            height: width
+            source: Qt.resolvedUrl("../icons/agent-pulse-symbolic.svg")
+            isMask: true
+            color: Kirigami.Theme.textColor
+            active: compactMouse.containsMouse
+        }
         MouseArea { id: compactMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.expanded = !root.expanded }
     }
 
