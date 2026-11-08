@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 — 2026-11-08
+
+- Native KDE Show Alternatives: Agent Pulse — Icon Only and Agent Pulse — Usage Stack, with per-agent usage rows in the stack
 
 - Include SQLite WAL writes in the Codex source timestamp so active sessions do not appear stale
 
